@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://src/actors/enemies/chaser_enemy.gd" id="1_enemy"]
+
+[sub_resource type="StandardMaterial3D" id="EnemyMaterial"]
+albedo_color = Color(0.92, 0.16, 0.24, 1)
+roughness = 0.55
+
+[sub_resource type="CapsuleMesh" id="EnemyMesh"]
+material = SubResource("EnemyMaterial")
+radius = 0.5
+height = 1.5
+
+[sub_resource type="CapsuleShape3D" id="EnemyShape"]
+radius = 0.5
+height = 1.5
+
+[node name="ChaserEnemy" type="CharacterBody3D"]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_enemy")
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.75, 0)
+mesh = SubResource("EnemyMesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.75, 0)
+shape = SubResource("EnemyShape")
+

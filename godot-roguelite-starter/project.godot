@@ -1,0 +1,31 @@
+; Godot 4.x project configuration
+; Prefer changing settings through the editor after the first import.
+
+config_version=5
+
+[application]
+
+config/name="Roguelite Starter"
+run/main_scene="res://src/main/main.tscn"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+
+[layer_names]
+
+3d_physics/layer_1="World"
+3d_physics/layer_2="Player"
+3d_physics/layer_3="Enemies"
+3d_physics/layer_4="PlayerProjectiles"
+
