@@ -1,4 +1,4 @@
-import { BOTTOM_RAIL, TOP_RAIL, WORLD_HEIGHT, obstacleTop } from './game';
+import { BOTTOM_RAIL, TOP_RAIL, WORLD_HEIGHT, difficultyAt, obstacleRects } from './game';
 import type { GameState } from './game';
 
 function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number, fill: string) {
@@ -45,7 +45,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.fillRect(x, y, i % 3 ? 1.5 : 2.5, i % 3 ? 1.5 : 2.5);
   }
   ctx.fillStyle = '#c2d2e10b'; ctx.font = '800 55px Arial';
-  ctx.fillText('SECTOR 01', w * 0.43 - scrolling * 0.04 % 90, 315);
+  ctx.fillText('SECTOR ' + difficultyAt(state.distance).sector.toString().padStart(2, '0'), w * 0.43 - scrolling * 0.04 % 90, 315);
   ctx.font = '10px monospace'; ctx.fillStyle = '#b0c2cb38';
   ctx.fillText('M A G N E T I C   T R A N S I T', w * 0.48 - scrolling * 0.04 % 90, 339);
   if (!reducedMotion && state.phase === 'playing') {
@@ -75,33 +75,44 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   let orbs = state.orbs;
   let robotY = state.y;
   if (state.phase === 'ready') {
-    obstacles = [{ id: 0, x: w * 0.72 - playerX, width: 66, height: 220, side: -1, kind: 'wall', passed: false, broken: false, closest: Infinity }, { id: 1, x: w * 0.9 - playerX, width: 72, height: 230, side: 1, kind: 'laser', passed: false, broken: false, closest: Infinity }];
-    orbs = [0, 1, 2].map((i) => ({ id: i, x: w * 0.62 + i * 40 - playerX, y: BOTTOM_RAIL - 33, collected: false }));
+    obstacles = [{ id: 0, x: w * 0.78 - playerX, width: 18, height: 0, side: 1, kind: 'squeeze', gap: { center: 280, size: 210 }, passed: false, broken: false, closest: Infinity }, { id: 1, x: w * 0.96 - playerX, width: 66, height: 230, side: -1, kind: 'wall', passed: false, broken: false, closest: Infinity }];
+    orbs = [0, 1, 2, 3].map((i) => ({ id: i, x: w * 0.71 + i * 30 - playerX, y: 418 - i * 82, collected: false }));
     robotY = BOTTOM_RAIL - 17;
   }
   const offset = state.phase === 'ready' ? 0 : state.distance;
   for (const obstacle of obstacles) {
     const x = playerX + obstacle.x - offset;
     if (obstacle.broken || x < -120 || x > w + 100) continue;
-    const y = obstacleTop(obstacle);
-    const obGradient = ctx.createLinearGradient(x, y, x + obstacle.width, y + obstacle.height);
-    obGradient.addColorStop(0, obstacle.kind === 'laser' ? '#ff728d' : '#e88c85'); obGradient.addColorStop(1, '#913e66');
-    ctx.save(); ctx.shadowBlur = 18; ctx.shadowColor = '#ee7c8c30';
-    ctx.beginPath(); ctx.roundRect(x, y, obstacle.width, obstacle.height, 6); ctx.fillStyle = obGradient; ctx.fill(); ctx.restore();
-    ctx.strokeStyle = '#ffb1a980'; ctx.lineWidth = 1; ctx.stroke();
-    rect(ctx, x + 6, y + 6, obstacle.width - 12, obstacle.height - 12, 3, '#2e203530');
-    ctx.save(); ctx.beginPath(); ctx.rect(x + 2, y + (obstacle.side === 1 ? 4 : obstacle.height - 14), obstacle.width - 4, 10); ctx.clip();
-    ctx.strokeStyle = '#f6c4a27a'; ctx.lineWidth = 5;
-    for (let stripe = -20; stripe < obstacle.width + 20; stripe += 15) {
-      const stripeY = y + (obstacle.side === 1 ? 4 : obstacle.height - 14);
-      ctx.beginPath(); ctx.moveTo(x + stripe, stripeY + 10); ctx.lineTo(x + stripe + 10, stripeY); ctx.stroke();
+    const squeeze = obstacle.kind === 'squeeze';
+    for (const segment of obstacleRects(obstacle)) {
+      const { top: y, height: segmentHeight, side } = segment;
+      const obGradient = ctx.createLinearGradient(x, y, x + obstacle.width, y + segmentHeight);
+      obGradient.addColorStop(0, squeeze ? '#ffc17d' : obstacle.kind === 'laser' ? '#ff728d' : '#e88c85'); obGradient.addColorStop(1, squeeze ? '#a05048' : '#913e66');
+      ctx.save(); ctx.shadowBlur = 18; ctx.shadowColor = '#ee7c8c30';
+      ctx.beginPath(); ctx.roundRect(x, y, obstacle.width, segmentHeight, squeeze ? 3 : 6); ctx.fillStyle = obGradient; ctx.fill(); ctx.restore();
+      ctx.strokeStyle = '#ffb1a980'; ctx.lineWidth = 1; ctx.stroke();
+      rect(ctx, x + 6, y + 6, obstacle.width - 12, segmentHeight - 12, 2, '#2e203530');
+      ctx.save(); ctx.beginPath(); ctx.rect(x + 2, y + (side === 1 ? 4 : segmentHeight - 14), obstacle.width - 4, 10); ctx.clip();
+      ctx.strokeStyle = '#f6c4a27a'; ctx.lineWidth = 5;
+      for (let stripe = -20; stripe < obstacle.width + 20; stripe += 15) {
+        const stripeY = y + (side === 1 ? 4 : segmentHeight - 14);
+        ctx.beginPath(); ctx.moveTo(x + stripe, stripeY + 10); ctx.lineTo(x + stripe + 10, stripeY); ctx.stroke();
+      }
+      ctx.restore();
+      if (obstacle.kind === 'laser') {
+        ctx.save(); ctx.shadowBlur = 22; ctx.shadowColor = '#ff83b4';
+        rect(ctx, x + obstacle.width / 2 - 3, y + 9, 6, segmentHeight - 18, 3, '#ffe0e9'); ctx.restore();
+      }
+      if (!squeeze) { ctx.fillStyle = '#fff0dbb0'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'center'; ctx.fillText('×', x + obstacle.width / 2, y + segmentHeight / 2 + 7); ctx.textAlign = 'start'; }
     }
-    ctx.restore();
-    if (obstacle.kind === 'laser') {
-      ctx.save(); ctx.shadowBlur = 22; ctx.shadowColor = '#ff83b4';
-      rect(ctx, x + obstacle.width / 2 - 3, y + 9, 6, obstacle.height - 18, 3, '#ffe0e9'); ctx.restore();
+    if (obstacle.gap) {
+      const { center, size } = obstacle.gap;
+      // Bright lips mark the passage; the opening itself stays visually clear.
+      ctx.save(); ctx.shadowBlur = 14; ctx.shadowColor = '#ffd39a';
+      rect(ctx, x - 4, center - size / 2 - 3, obstacle.width + 8, 4, 2, '#ffe1a9');
+      rect(ctx, x - 4, center + size / 2 - 1, obstacle.width + 8, 4, 2, '#ffe1a9');
+      ctx.restore();
     }
-    ctx.fillStyle = '#fff0dbb0'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'center'; ctx.fillText('×', x + obstacle.width / 2, y + obstacle.height / 2 + 7); ctx.textAlign = 'start';
   }
   for (const orb of orbs) {
     const x = playerX + orb.x - offset;

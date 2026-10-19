@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { stripTypeScriptTypes } from 'node:module';
 import { chromium } from 'playwright';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -161,6 +162,48 @@ try {
   await privatePage.getByText('Keep the fun.').waitFor();
   assert.match(await privatePage.locator('.metric-grid').innerText(), /1\s+Browser sessions/);
   console.log('PASS gameplay and in-memory metrics with persistent browser storage disabled');
+
+  // Render an actual generated squeeze in Chromium at both viewport widths.
+  // Test-only module routes keep fixture controls out of the shipped game.
+  const scene = await browser.newPage({ viewport: { width: 900, height: 560 } });
+  watch(scene);
+  const engineModule = stripTypeScriptTypes(await readFile(`${root}/src/game.ts`, 'utf8'));
+  const rendererModule = stripTypeScriptTypes(await readFile(`${root}/src/render.ts`, 'utf8')).replace("from './game'", "from './game.js'");
+  await scene.route('**/__scene/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('.js')) await route.fulfill({ contentType: 'text/javascript', body: path.endsWith('/game.js') ? engineModule : rendererModule });
+    else await route.fulfill({ contentType: 'text/html', body: '<style>body{margin:0;background:#111}canvas{display:block;width:100vw;height:100vh}</style><canvas></canvas>' });
+  });
+  await scene.goto(`${origin}/__scene/index.html`);
+  for (const width of [900, 390]) {
+    await scene.setViewportSize({ width, height: 560 });
+    const result = await scene.evaluate(async () => {
+      const game = await import('/__scene/game.js');
+      const { drawScene } = await import('/__scene/render.js');
+      let state = game.startRun(game.createRun(72));
+      let inGate = false;
+      for (let tick = 0; tick < 120 * 12 && state.phase === 'playing'; tick++) {
+        const next = state.obstacles.find(o => !o.passed && !o.broken);
+        const dy = next?.gap ? Math.abs(state.y - next.gap.center) : 0;
+        const lead = next?.gap ? (Math.sqrt(1100 ** 2 + 10000 * dy) - 1100) / 5000 : 0.29;
+        if (next && state.gravity === next.side && next.x + (next.gap ? next.width / 2 : 0) - state.distance <= state.speed * lead) state = game.flip(state);
+        state.shield = 0;
+        state = game.stepRun(state, 1 / 120);
+        if (next?.gap && Math.abs(next.x + next.width / 2 - state.distance) < 5) { inGate = true; break; }
+      }
+      const canvas = document.querySelector('canvas');
+      canvas.width = innerWidth * devicePixelRatio; canvas.height = innerHeight * devicePixelRatio;
+      const context = canvas.getContext('2d');
+      context.scale(devicePixelRatio, devicePixelRatio);
+      drawScene(context, innerWidth, innerHeight, state, state.elapsed, false);
+      return { phase: state.phase, coins: state.coins, inGate, y: state.y, shieldHits: state.shieldHits };
+    });
+    assert.equal(result.phase, 'playing'); assert.ok(result.inGate);
+    assert.ok(result.coins >= 24); assert.equal(result.shieldHits, 0);
+    assert.ok(result.y > 200 && result.y < 360);
+    await scene.screenshot({ path: `${root}/test-results/squeeze-${width}.png` });
+  }
+  console.log('PASS generated midair squeeze and airborne collection render on desktop and phone');
   assert.deepEqual(errors, [], `Browser exceptions: ${errors.join('; ')}`);
   console.log('PASS all browser checks; no uncaught exceptions');
 } finally {

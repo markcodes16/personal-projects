@@ -10,11 +10,11 @@ Working title and concept: commercial naming and competitor research are still n
 
 The self-contained game file is published in this public repository. An account-free rendering URL is available through raw.githack.com:
 
-https://raw.githack.com/markcodes16/personal-projects/main/magnet-dash/demo/index.html?v=2
+https://raw.githack.com/markcodes16/personal-projects/main/magnet-dash/demo/index.html?v=3
 
-The live HTTPS preview returns HTTP 200 with an HTML content type and matches the tested standalone build byte-for-byte. The user confirmed that it plays successfully. Local desktop and mobile browser tests passed. Additional automated live-browser checks were blocked by the cloud Chromium profile's missing trust for the network proxy certificate; certificate verification was kept enabled. Node HTTPS checks use the supplied proxy and certificate configuration with `NODE_USE_ENV_PROXY=1`.
+The public preview is checked against the tested standalone HTML after each publication. The user confirmed the prior version plays successfully. Local desktop and mobile browser tests exercise the current version. Additional automated live-browser checks were blocked by the cloud Chromium profile's missing trust for the network proxy certificate; certificate verification was kept enabled. Node HTTPS checks use the supplied proxy and certificate configuration with `NODE_USE_ENV_PROXY=1`.
 
-This is a public prototype preview, not production hosting. The preview URL follows the latest published main branch; a short CDN cache may apply. The V2 build was verified against commit 1d007158f7fb7e53323fe37307c1d5648e450e48. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then use its commit SHA in the preview URL.
+This is a public prototype preview, not production hosting. The preview URL follows the latest published main branch; a short CDN cache may apply. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then increment the version query in the main-branch preview URL and verify the returned HTML against the local artifact. Request a commit-specific URL only after the push finishes; early requests can cache a 404.
 
 This environment-onboarding chat has no user-facing web-preview service. Workspace file links and a running cloud server do not produce a public website. Publishing the development environment saves its setup; it does not deploy the game.
 
@@ -49,18 +49,22 @@ npm run test:browser     # Build + desktop, mobile, controls, storage, and offli
 
 Browser checks use Playwright with `/usr/bin/chromium` when available. Else set `CHROMIUM_PATH` or install Playwright's Chromium in the cloud. They start a temporary local server on port 4175, close it afterward, and save screenshots under ignored `test-results/`. The game itself has no Playwright dependency at runtime.
 
-## V2 playtest changes
+## V3 playtest changes
 
-The runner now starts at 440 world units/second (previously 235), with the first obstacle about 1.2 seconds into a run (previously about 3.7). Tall alternating walls, thin laser gates, hold beats and center cargo demand repeated decisions. A full rail transfer takes less than 0.3 seconds; narrow screens show at least 680 world units so hazards remain readable. Thirty seeded minute-long routes are tested without shields, each requiring over forty flips.
+The runner starts at 440 world units/second and ramps to 780 over about 57 seconds. Over the first 45,000 world units (3,600m, roughly 70 seconds), base obstacle spacing decreases from 430 to 350 units and squeeze openings narrow from 286 to 178 units. Squeeze gates first appear around seven seconds in; they become more frequent later. They consist of an upper and lower barrier with a midair passage, so camping on either rail cannot clear them. Bounded speed and spacing keep long runs playable. The sector counter advances with distance.
 
-Feedback includes pickup bursts, rail-landing rings, trails, close-call bonuses, score-chain callouts, impact shake, rising energy tones and optional short touch haptics. Reduced-motion preferences suppress decorative effects; sound remains optional and starts muted. Best runs are preserved across the balance change, so earlier distances may reflect easier rules. Live ad behavior remains unchanged: none are served.
+Four-bead energy trails follow ballistic transfers between rails, with mid-flight shield capsules along selected routes. The trails show a collectible route through squeeze openings. Holding ×5 now uses short, quieter, lower-pitched ticks with note variation and a pickup rate limit. Multiplier increases still get a brief chord. Landing and flip cues are softer as well.
+
+Validation covers 24 unit tests, including 30 seeded two-minute runs with no shield use, airborne collection, both squeeze collision surfaces, progression bounds and audio throttling. The opening squeeze has a wider tested input window than expert gates. Desktop/mobile browser checks cover normal controls, pause, rescue, persistence, storage-disabled play, the standalone offline bundle, and rendered midair squeeze scenes. A full rail transfer still takes less than 0.3 seconds; narrow screens show at least 680 world units for advance warning.
+
+Reduced-motion preferences suppress decorative effects; sound remains optional and starts muted. Best runs are preserved across balance changes, so earlier distances may reflect easier rules. No live ads are served.
 
 ## Controls and rules
 
 - Tap/click the tunnel, press Space / Up / Down, or use the flip button to switch polarity.
 - Press P / Escape or use the pause button. Hiding the tab, opening instructions, or visiting the creator lab pauses an active run. Resume explicitly.
-- Pink obstacles end a run unless the shield is active. Flip early enough to cross the tunnel. Floating cargo appears later to vary the route.
-- Consecutive energy pickups build a score multiplier up to ×5; missing an orb resets it. Close passes earn skill bonuses. Cyan shield capsules are separate pickups and absorb exactly one collision. Energy never grants a shield.
+- Pink walls and amber squeeze barriers end a run unless a shield is active. Flip early for walls; time a midair crossing through the opening between paired squeeze barriers.
+- Follow airborne energy trails up or down. Consecutive energy pickups build a score multiplier up to ×5; missing an orb resets it. Close passes earn skill bonuses. Cyan shield capsules are separate pickups and absorb exactly one collision. Energy never grants a shield.
 - One optional **demo** rescue clears the immediate route without granting a shield. No ad plays. Rescuing updates the same saved run rather than counting it twice.
 - Endless uses fresh seeds. Daily Circuit uses the browser's local calendar date, so the layout repeats that day. There is no global leaderboard or verified competitive scoring.
 

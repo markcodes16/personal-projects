@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, ArrowUpRight, CircleHelp, Pause, Play, RotateCcw, Shield, Trophy, Zap } from 'lucide-react';
-import { createRun, dailySeed, distanceMeters, flip, rescue, score, startRun, stepRun, togglePause } from './game';
+import { createRun, dailySeed, difficultyAt, distanceMeters, flip, rescue, score, startRun, stepRun, togglePause } from './game';
 import type { GameState, Phase } from './game';
 import { drawScene } from './render';
 import { track } from './analytics';
 import { tone } from './sound';
 import type { RunResult } from './storage';
 
-export type LiveStats = { phase: Phase; distance: number; score: number; coins: number; combo: number; nearMisses: number; gravity: number; shield: number; rescued: boolean; isRecord: boolean };
+export type LiveStats = { phase: Phase; distance: number; sector: number; score: number; coins: number; combo: number; nearMisses: number; gravity: number; shield: number; rescued: boolean; isRecord: boolean };
 function snapshot(state: GameState, previousBest: number): LiveStats {
-  return { phase: state.phase, distance: distanceMeters(state), score: score(state), coins: state.coins,
+  return { phase: state.phase, distance: distanceMeters(state), sector: difficultyAt(state.distance).sector, score: score(state), coins: state.coins,
     combo: state.combo, nearMisses: state.nearMisses, gravity: state.gravity, shield: state.shield, rescued: state.rescued, isRecord: distanceMeters(state) > previousBest };
 }
 function seedFor(mode: 'endless' | 'daily') {
@@ -51,7 +51,7 @@ export default function GamePanel({ mode, visible, sound, best, onRun, onLive, o
       }
       run.current = startRun(run.current);
       tone('start', callbacks.current.sound);
-      track('round_started', { mode: callbacks.current.mode, seed: run.current.seed, rulesVersion: 2 }, id.current);
+      track('round_started', { mode: callbacks.current.mode, seed: run.current.seed, rulesVersion: 3 }, id.current);
       update(); canvas.current?.focus({ preventScroll: true });
     };
     action.current = () => {
@@ -146,7 +146,7 @@ export default function GamePanel({ mode, visible, sound, best, onRun, onLive, o
   };
 
   return <section className="game-card" aria-label="Magnet Dash game">
-    <div className="game-toolbar"><div className="circuit-label"><span className="status-dot" /><span>{mode === 'daily' ? 'DAILY CIRCUIT' : 'ENDLESS CIRCUIT · V2'}</span><span className="toolbar-divider">/</span><span className="sector-label">SECTOR 01</span></div><div className="game-tools"><button className="icon-button" aria-label="How to play" onClick={onHelp}><CircleHelp size={17} /></button><button className="icon-button" aria-label={stats.phase === 'paused' ? 'Resume game' : 'Pause game'} disabled={stats.phase === 'ready' || stats.phase === 'over'} onClick={() => pause.current()}>{stats.phase === 'paused' ? <Play size={16} /> : <Pause size={16} />}</button></div></div>
+    <div className="game-toolbar"><div className="circuit-label"><span className="status-dot" /><span>{mode === 'daily' ? 'DAILY CIRCUIT · V3' : 'ENDLESS CIRCUIT · V3'}</span><span className="toolbar-divider">/</span><span className="sector-label">SECTOR {stats.sector.toString().padStart(2, '0')}</span></div><div className="game-tools"><button className="icon-button" aria-label="How to play" onClick={onHelp}><CircleHelp size={17} /></button><button className="icon-button" aria-label={stats.phase === 'paused' ? 'Resume game' : 'Pause game'} disabled={stats.phase === 'ready' || stats.phase === 'over'} onClick={() => pause.current()}>{stats.phase === 'paused' ? <Play size={16} /> : <Pause size={16} />}</button></div></div>
     <div className={`game-viewport phase-${stats.phase}`}>
       <canvas ref={canvas} tabIndex={0} role="button" aria-label="Game tunnel. Press Space or tap to switch polarity. P pauses." onPointerDown={event => { event.preventDefault(); canvas.current?.focus({ preventScroll: true }); action.current(); }} />
       <div className="game-hud" aria-hidden="true"><div><span>DISTANCE</span><strong>{stats.distance.toString().padStart(3, '0')}<small>m</small></strong></div><div className="hud-charge"><span>FLOW MULTIPLIER</span><strong className="combo-value">×{stats.combo}</strong><div>{Array.from({ length: 5 }, (_, index) => <i className={index < stats.combo ? 'filled' : ''} key={index} />)}</div></div><div className="hud-energy"><Zap size={15} /><strong key={stats.coins}>{stats.coins.toString().padStart(2, '0')}</strong><span className="hud-points">{stats.score} PTS</span></div></div>

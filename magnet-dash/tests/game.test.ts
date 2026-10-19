@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BOTTOM_RAIL, createRun, dailySeed, distanceMeters, FIXED_STEP, flip, rescue, ROBOT_RADIUS, score, START_SPEED, startRun, stepRun, togglePause, TOP_RAIL } from '../src/game.ts';
+import { BOTTOM_RAIL, circleClearance, createRun, dailySeed, difficultyAt, distanceMeters, FIXED_STEP, flip, MAX_SPEED, obstacleRects, rescue, ROBOT_RADIUS, score, START_SPEED, startRun, stepRun, togglePause, TOP_RAIL } from '../src/game.ts';
 import type { GameState, Obstacle } from '../src/game.ts';
 
 function advance(state: GameState, seconds: number) {
@@ -50,7 +50,7 @@ test('opening starts fast and idle play dies in under 1.5 seconds', () => {
 test('one flip cannot camp on the ceiling past the second gate', () => {
   const first = advance(flip(startRun(createRun(72))), 1.6);
   assert.equal(first.phase, 'playing');
-  assert.ok(first.coins >= 3);
+  assert.ok(first.coins < 4, 'An immediate flip misses the airborne trail');
   assert.equal(first.shield, 0);
   const later = advance(first, 2);
   assert.equal(later.phase, 'over');
@@ -90,14 +90,14 @@ test('physical shield pickup absorbs exactly one obstacle hit', () => {
   assert.equal(stepRun(after, FIXED_STEP).phase, 'over');
 });
 
-test('shield capsules appear as distinct, rare pickups on reachable rails', () => {
+test('shield capsules appear as distinct, rare airborne pickups', () => {
   const state = createRun(12);
   state.distance = 2000;
   const populated = stepRun(startRun(state), FIXED_STEP);
   assert.ok(populated.pickups.length > 0);
   for (const p of populated.pickups) {
     assert.equal(p.kind, 'shield');
-    assert.ok(p.y === TOP_RAIL + ROBOT_RADIUS + 2 || p.y === BOTTOM_RAIL - ROBOT_RADIUS - 2);
+    assert.ok(p.y > TOP_RAIL + 70 && p.y < BOTTOM_RAIL - 70);
   }
 });
 
@@ -121,7 +121,7 @@ test('a genuine close pass awards a visible skill bonus', () => {
   assert.ok(after.bonus >= 30);
 });
 
-test('daily layouts are deterministic and terrain includes tall gates and drones', () => {
+test('daily layouts are deterministic and opening zigzags leave transfer room', () => {
   assert.equal(dailySeed('2026-10-19'), dailySeed('2026-10-19'));
   assert.notEqual(dailySeed('2026-10-19'), dailySeed('2026-10-20'));
   assert.deepEqual(createRun(141).obstacles, createRun(141).obstacles);
@@ -129,8 +129,8 @@ test('daily layouts are deterministic and terrain includes tall gates and drones
   for (let seed = 1; seed <= 100; seed++) {
     const state = createRun(seed);
     assert.deepEqual(state.obstacles.slice(0, 4).map(o => o.side), [1, -1, 1, -1]);
-    for (let i = 1; i < state.obstacles.length; i++) assert.ok(state.obstacles[i].x - state.obstacles[i-1].x >= 430);
-    assert.ok(state.obstacles.filter(o => o.side !== 0).every(o => o.height > (BOTTOM_RAIL - TOP_RAIL) / 2));
+    for (let i = 1; i < state.obstacles.length; i++) assert.ok(state.obstacles[i].x - state.obstacles[i-1].x >= 350);
+    assert.ok(state.obstacles.filter(o => o.kind !== 'squeeze').every(o => o.height > (BOTTOM_RAIL - TOP_RAIL) / 2));
   }
 });
 
@@ -142,17 +142,104 @@ test('30 fps and 120 fps give the same active-time simulation', () => {
   assert.ok(Math.abs(slow.y - fast.y) < 0.00001);
 });
 
-test('thirty seeded minute-long routes are navigable without shields and require repeated inputs', () => {
+test('difficulty raises speed and density while narrowing openings to a reachable limit', () => {
+  for (let x = 0; x < 45000; x += 1000) {
+    const before = difficultyAt(x), after = difficultyAt(x + 1000);
+    assert.ok(after.speed >= before.speed);
+    assert.ok(after.spacing < before.spacing);
+    assert.ok(after.opening < before.opening);
+  }
+  assert.equal(difficultyAt(45000).speed, MAX_SPEED);
+  assert.equal(difficultyAt(45000).opening, 178);
+  assert.equal(difficultyAt(45000).spacing, 350);
+  assert.equal(difficultyAt(1e8).opening, 178);
+  assert.equal(difficultyAt(1e8).speed, MAX_SPEED);
+});
+
+test('squeeze barriers block both rails and leave only the midair passage open', () => {
+  const gate: Obstacle = { ...wall(20), width: 18, kind: 'squeeze', gap: { center: 283, size: 200 } };
+  for (const y of [TOP_RAIL + ROBOT_RADIUS, BOTTOM_RAIL - ROBOT_RADIUS]) {
+    const state = emptyRun(); state.y = y; state.obstacles = [gate];
+    assert.equal(advance(state, 0.15).phase, 'over');
+  }
+  const state = emptyRun(); state.y = 283; state.obstacles = [gate];
+  const through = advance(state, 0.15);
+  assert.equal(through.phase, 'playing');
+  assert.equal(through.dodged, 1);
+  const protectedRun = emptyRun(); protectedRun.shield = 1; protectedRun.obstacles = [gate];
+  const broken = advance(protectedRun, 0.15);
+  assert.equal(broken.phase, 'playing'); assert.equal(broken.shieldHits, 1);
+  assert.equal(broken.obstacles[0].broken, true);
+});
+
+test('energy trails span the tunnel and a timed opening flip collects the whole arc', () => {
+  let state = startRun(createRun(72));
+  const opening = state.orbs.filter(o => o.id < 4);
+  assert.ok(Math.max(...opening.map(o => o.y)) - Math.min(...opening.map(o => o.y)) > 250);
+  const first = state.obstacles[0];
+  while (state.distance < first.x - state.speed * 0.29) state = stepRun(state, FIXED_STEP);
+  state = advance(flip(state), 0.5);
+  assert.equal(state.phase, 'playing'); assert.equal(state.coins, 4);
+});
+
+test('early squeeze gates allow a wider input window than expert gates', () => {
+  const windows = [3500, 50000].map(distance => {
+    const difficulty = difficultyAt(distance);
+    const accepted: number[] = [];
+    for (let milliseconds = -80; milliseconds <= 80; milliseconds += 2) {
+      let state = emptyRun();
+      Object.assign(state, { distance, speed: difficulty.speed, elapsed: (difficulty.speed - START_SPEED) / 6 });
+      const gate: Obstacle = { ...wall(distance + 350), width: 14 + 4 * difficulty.progress,
+        kind: 'squeeze', gap: { center: 283, size: difficulty.opening } };
+      state.obstacles = [gate];
+      let tapped = false;
+      for (let tick = 0; tick < 240 && state.phase === 'playing' && !state.obstacles[0].passed; tick++) {
+        const lead = (Math.sqrt(1100 ** 2 + 10000 * 180) - 1100) / 5000 + milliseconds / 1000;
+        if (!tapped && gate.x + gate.width / 2 - state.distance <= state.speed * lead) { state = flip(state); tapped = true; }
+        state = stepRun(state, FIXED_STEP);
+      }
+      if (state.phase === 'playing' && state.obstacles[0].passed) accepted.push(milliseconds);
+    }
+    return Math.max(...accepted) - Math.min(...accepted);
+  });
+  assert.ok(windows[0] >= 60, `Opening window: ${windows[0]}ms`);
+  assert.ok(windows[1] >= 30 && windows[1] <= windows[0] - 20, `Expert window: ${windows[1]}ms`);
+});
+
+test('thirty seeded two-minute routes stay navigable without shields, including the tightest gates', () => {
   for (let seed = 1; seed <= 30; seed++) {
     let state = startRun(createRun(seed));
-    for (let tick = 0; tick < 120 * 60 && state.phase === 'playing'; tick++) {
-      const next = state.obstacles.find(o => !o.passed && !o.broken && o.x + o.width + ROBOT_RADIUS + 12 > state.distance);
-      if (next && next.side !== 0 && next.x - state.distance < state.speed * 0.5 && state.gravity === next.side) state = flip(state);
-      state.pickups = []; state.shield = 0;
+    let squeezed = 0, tightGates = 0, airborneShields = 0, lastFlipAt = -1;
+    const seen = new Set<number>();
+    for (let tick = 0; tick < 120 * 120 && state.phase === 'playing'; tick++) {
+      const next = state.obstacles.find(o => !o.passed && !o.broken);
+      if (next && state.gravity === next.side) {
+        // Aim the center of a normal ballistic transfer at the physical opening.
+        // This test drives actual inputs through collision detection, not invulnerability.
+        const dy = next.gap ? Math.abs(state.y - next.gap.center) : 0;
+        const lead = next.gap ? (Math.sqrt(1100 ** 2 + 10000 * dy) - 1100) / 5000 : 0.29;
+        const targetX = next.x + (next.gap ? next.width / 2 : 0);
+        if (targetX - state.distance <= state.speed * lead) {
+          assert.ok(state.elapsed - lastFlipAt >= 0.09, 'Must respect touch debounce');
+          state = flip(state); lastFlipAt = state.elapsed;
+        }
+      }
+      state.shield = 0;
       state = stepRun(state, FIXED_STEP);
+      assert.equal(state.shieldHits, 0, 'The route must never rely on a shield');
+      if (state.shield) airborneShields++;
+      for (const o of state.obstacles) {
+        if (o.gap && o.passed && !seen.has(o.id)) { seen.add(o.id); squeezed++; if (o.gap.size <= 179) tightGates++; }
+        for (const orb of state.orbs.filter(orb => Math.floor(orb.id / 4) === o.id)) {
+          assert.ok(obstacleRects(o).every(rect => circleClearance(orb.x, orb.y, 11, o.x, rect.top, o.width, rect.height) >= 0), 'Energy must stay out of barriers');
+        }
+      }
     }
     assert.equal(state.phase, 'playing', `Seed ${seed} died at ${state.elapsed.toFixed(2)} seconds`);
-    assert.ok(state.elapsed >= 59.9);
-    assert.ok(state.flips > 40, `Seed ${seed} needed only ${state.flips} inputs`);
+    assert.ok(state.elapsed >= 119.9);
+    assert.ok(state.flips > 100, `Seed ${seed} needed only ${state.flips} inputs`);
+    assert.ok(squeezed > 20 && tightGates > 8, `Seed ${seed}: ${squeezed} gates, ${tightGates} tight`);
+    assert.ok(airborneShields > 5, 'Airborne shields must be physically collectible');
+    assert.ok(state.coins >= state.dodged * 3.8, 'The flight trails must remain collectible at every tier');
   }
 });
