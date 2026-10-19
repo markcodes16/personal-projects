@@ -48,6 +48,8 @@ try {
   assert.equal(await page.getByRole('dialog').count(), 0);
   console.log('PASS daily mode and keyboard-accessible help');
 
+  await page.getByRole('button', { name: 'Enable sound', exact: true }).click();
+  await page.getByRole('button', { name: 'Mute sound', exact: true }).waitFor();
   await page.getByRole('button', { name: "Let's dash" }).click();
   await page.waitForTimeout(180);
   await page.keyboard.press('Space');
@@ -92,7 +94,7 @@ try {
   await page.getByRole('button', { name: "Let's dash" }).click();
   await page.getByRole('dialog', { name: 'Run complete' }).waitFor({ timeout: 7000 });
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('magnet-dash.player.v1')));
-  assert.ok(stored.bestDistance >= 60);
+  assert.ok(stored.bestDistance >= 30);
   assert.equal(stored.totalRuns, 1);
   await page.getByRole('button', { name: 'Try a free rescue' }).click();
   await page.locator('.phase-playing').waitFor();

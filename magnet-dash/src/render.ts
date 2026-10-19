@@ -1,4 +1,4 @@
-import { BOTTOM_RAIL, TOP_RAIL, WORLD_HEIGHT } from './game';
+import { BOTTOM_RAIL, TOP_RAIL, WORLD_HEIGHT, obstacleTop } from './game';
 import type { GameState } from './game';
 
 function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number, fill: string) {
@@ -9,7 +9,14 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.save();
   const scale = height / WORLD_HEIGHT;
   ctx.scale(scale, scale);
-  const w = width / scale;
+  // Keep at least 680 world units visible on narrow phones for a fair warning window.
+  const horizontalZoom = Math.min(1, width / scale / 680);
+  ctx.scale(horizontalZoom, 1);
+  const w = width / scale / horizontalZoom;
+  if (!reducedMotion) {
+    const impact = state.effects.find(e => (e.kind === 'crash' || e.kind === 'break' || e.kind === 'near') && e.age < 0.13);
+    if (impact) { const strength = (1 - impact.age / 0.13) * (impact.kind === 'crash' ? 6 : 3); ctx.translate(Math.sin(time * 110) * strength, Math.cos(time * 93) * strength * 0.5); }
+  }
   const playerX = Math.min(115, w * 0.2);
   const clock = reducedMotion || state.phase === 'paused' ? state.elapsed : time;
   const scrolling = state.phase === 'ready' ? (reducedMotion ? 0 : time * 18) : state.distance;
@@ -17,7 +24,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   gradient.addColorStop(0, '#171a2c'); gradient.addColorStop(0.55, '#111b27'); gradient.addColorStop(1, '#152b29');
   ctx.fillStyle = gradient; ctx.fillRect(0, 0, w, WORLD_HEIGHT);
 
-  // Original vector scenery: a quiet industrial tunnel with parallax circuitry.
+  // Tunnel parallax and speed streaks respond to the actual run speed.
   ctx.lineWidth = 1; ctx.strokeStyle = '#b1c7dc0b';
   for (let x = -(scrolling * 0.18 % 64); x < w; x += 64) {
     ctx.beginPath(); ctx.moveTo(x, TOP_RAIL); ctx.lineTo(x, BOTTOM_RAIL); ctx.stroke();
@@ -41,6 +48,14 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.fillText('SECTOR 01', w * 0.43 - scrolling * 0.04 % 90, 315);
   ctx.font = '10px monospace'; ctx.fillStyle = '#b0c2cb38';
   ctx.fillText('M A G N E T I C   T R A N S I T', w * 0.48 - scrolling * 0.04 % 90, 339);
+  if (!reducedMotion && state.phase === 'playing') {
+    ctx.strokeStyle = '#c9e8d528'; ctx.lineWidth = 1;
+    for (let i = 0; i < 13; i++) {
+      const x = ((i * 197 - scrolling * 1.3) % w + w) % w;
+      const y = TOP_RAIL + 18 + i * 57 % 350;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 15 + state.speed / 16, y); ctx.stroke();
+    }
+  }
 
   // The two rails have distinct color and position cues, rather than color alone.
   for (const side of [-1, 1]) {
@@ -60,17 +75,17 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   let orbs = state.orbs;
   let robotY = state.y;
   if (state.phase === 'ready') {
-    obstacles = [{ id: 0, x: w * 0.72 - playerX, width: 66, height: 95, side: -1 }, { id: 1, x: w * 0.9 - playerX, width: 72, height: 110, side: 1 }];
+    obstacles = [{ id: 0, x: w * 0.72 - playerX, width: 66, height: 220, side: -1, kind: 'wall', passed: false, broken: false, closest: Infinity }, { id: 1, x: w * 0.9 - playerX, width: 72, height: 230, side: 1, kind: 'laser', passed: false, broken: false, closest: Infinity }];
     orbs = [0, 1, 2].map((i) => ({ id: i, x: w * 0.62 + i * 40 - playerX, y: BOTTOM_RAIL - 33, collected: false }));
     robotY = BOTTOM_RAIL - 17;
   }
   const offset = state.phase === 'ready' ? 0 : state.distance;
   for (const obstacle of obstacles) {
     const x = playerX + obstacle.x - offset;
-    if (x < -120 || x > w + 100) continue;
-    const y = obstacle.side === 1 ? BOTTOM_RAIL - obstacle.height : obstacle.side === -1 ? TOP_RAIL : (TOP_RAIL + BOTTOM_RAIL - obstacle.height) / 2;
+    if (obstacle.broken || x < -120 || x > w + 100) continue;
+    const y = obstacleTop(obstacle);
     const obGradient = ctx.createLinearGradient(x, y, x + obstacle.width, y + obstacle.height);
-    obGradient.addColorStop(0, '#d67e80'); obGradient.addColorStop(1, '#9d425e');
+    obGradient.addColorStop(0, obstacle.kind === 'laser' ? '#ff728d' : '#e88c85'); obGradient.addColorStop(1, '#913e66');
     ctx.save(); ctx.shadowBlur = 18; ctx.shadowColor = '#ee7c8c30';
     ctx.beginPath(); ctx.roundRect(x, y, obstacle.width, obstacle.height, 6); ctx.fillStyle = obGradient; ctx.fill(); ctx.restore();
     ctx.strokeStyle = '#ffb1a980'; ctx.lineWidth = 1; ctx.stroke();
@@ -82,6 +97,10 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       ctx.beginPath(); ctx.moveTo(x + stripe, stripeY + 10); ctx.lineTo(x + stripe + 10, stripeY); ctx.stroke();
     }
     ctx.restore();
+    if (obstacle.kind === 'laser') {
+      ctx.save(); ctx.shadowBlur = 22; ctx.shadowColor = '#ff83b4';
+      rect(ctx, x + obstacle.width / 2 - 3, y + 9, 6, obstacle.height - 18, 3, '#ffe0e9'); ctx.restore();
+    }
     ctx.fillStyle = '#fff0dbb0'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'center'; ctx.fillText('×', x + obstacle.width / 2, y + obstacle.height / 2 + 7); ctx.textAlign = 'start';
   }
   for (const orb of orbs) {
@@ -93,20 +112,55 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.translate(x, y); ctx.rotate(Math.PI / 4); rect(ctx, -3, -3, 6, 6, 1, '#d6ffae'); ctx.restore();
   }
 
+  for (const pickup of state.pickups) {
+    const x = playerX + pickup.x - offset;
+    if (pickup.collected || x < -30 || x > w + 30) continue;
+    const y = pickup.y;
+    ctx.save(); ctx.translate(x, y); ctx.shadowBlur = 25; ctx.shadowColor = '#72e8ff';
+    ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(18, -10); ctx.lineTo(15, 11); ctx.lineTo(0, 23); ctx.lineTo(-15, 11); ctx.lineTo(-18, -10); ctx.closePath();
+    ctx.fillStyle = '#174f62'; ctx.fill(); ctx.strokeStyle = '#8df1ff'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.shadowBlur = 0; ctx.strokeStyle = '#d1fcff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-7, -4); ctx.lineTo(0, -8); ctx.lineTo(7, -4); ctx.lineTo(5, 6); ctx.lineTo(0, 10); ctx.lineTo(-5, 6); ctx.closePath(); ctx.stroke(); ctx.restore();
+  }
+  for (const effect of state.effects) {
+    const x = playerX + effect.x - offset, y = effect.y, age = effect.age;
+    const color = effect.kind === 'shield' || effect.kind === 'break' ? '#91efff' : effect.kind === 'flip' ? '#c9baff' : '#d7ff91';
+    if (!reducedMotion) {
+      ctx.save(); ctx.globalAlpha = Math.max(0, 1 - age / 0.55); ctx.fillStyle = color; ctx.strokeStyle = color;
+      if (effect.kind === 'land') {
+        ctx.beginPath(); ctx.ellipse(x, y + state.gravity * 15, 12 + age * 110, 3 + age * 4, 0, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.stroke();
+      } else if (effect.kind !== 'combo' && effect.kind !== 'near') {
+        const count = effect.kind === 'crash' || effect.kind === 'break' ? 15 : 7;
+        for (let i = 0; i < count; i++) {
+          const angle = i / count * Math.PI * 2 + effect.id;
+          const spread = age * (effect.kind === 'break' ? 230 : 140);
+          rect(ctx, x + Math.cos(angle) * spread - 2, y + Math.sin(angle) * spread + age * age * 90 - 2, effect.kind === 'break' ? 7 : 4, effect.kind === 'break' ? 7 : 4, 1, color);
+        }
+      }
+      ctx.restore();
+    }
+    if (effect.kind === 'near' || effect.kind === 'combo' || effect.kind === 'shield' || effect.kind === 'break' || effect.kind === 'coin') {
+      ctx.save(); ctx.globalAlpha = Math.max(0, 1 - age / 0.85); ctx.fillStyle = color;
+      const callout = effect.kind === 'coin' ? '+' + effect.value : effect.kind === 'near' ? 'CLOSE CALL +' + effect.value : effect.kind === 'combo' ? 'FLOW x' + effect.value : effect.kind === 'shield' ? 'SHIELD READY' : 'SMASH +50';
+      ctx.font = effect.kind === 'coin' ? 'bold 13px monospace' : 'bold 16px monospace'; ctx.textAlign = 'center';
+      ctx.fillText(callout, Math.max(90, Math.min(w - 100, x)), Math.max(135, Math.min(425, y - 28 - (reducedMotion ? 0 : age * 55)))); ctx.restore();
+    }
+  }
+
   if (state.phase !== 'over') {
     const accent = state.gravity === -1 ? '#baaaff' : '#ceff8b';
     ctx.save();
-    for (let i = 7; i > 0; i--) {
-      ctx.globalAlpha = (1 - i / 8) * 0.13;
-      rect(ctx, playerX - 17 - i * 9, robotY - 8 + Math.sin(clock * 6 - i) * (reducedMotion ? 0 : 3), 18, 16, 5, accent);
+    if (!reducedMotion) for (let i = 0; i < state.trail.length; i++) {
+      const point = state.trail[i]; ctx.globalAlpha = i / state.trail.length * 0.25;
+      rect(ctx, playerX + point.x - state.distance - 13, point.y - 11, 26, 22, 6, accent);
     }
     ctx.restore();
     if (state.shield > 0) {
-      ctx.save(); ctx.shadowBlur = 20; ctx.shadowColor = '#caff94';
+      ctx.save(); ctx.shadowBlur = 20; ctx.shadowColor = '#8befff';
       ctx.beginPath(); ctx.arc(playerX, robotY, 33 + (reducedMotion ? 0 : Math.sin(clock * 9) * 2), 0, Math.PI * 2);
-      ctx.strokeStyle = '#d4ffa7b0'; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = '#baff8e12'; ctx.fill(); ctx.restore();
+      ctx.strokeStyle = '#9ef3ffdd'; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = '#8ff3ff18'; ctx.fill(); ctx.restore();
     }
-    ctx.save(); ctx.translate(playerX, robotY); ctx.scale(1, state.gravity);
+    ctx.save(); ctx.translate(playerX, robotY); ctx.rotate(state.angle);
     ctx.shadowBlur = 15; ctx.shadowColor = '#cfff7f4a';
     rect(ctx, -18, -18, 36, 31, 8, '#e7efdc'); ctx.shadowBlur = 0;
     rect(ctx, -13, -11, 26, 15, 5, '#223334');

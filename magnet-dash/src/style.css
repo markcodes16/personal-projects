@@ -14,3 +14,11 @@
 .start-button .start-arrow{margin-left:auto;width:15px;opacity:.7}.goal-card h2>svg{vertical-align:-2px;color:#77886d;margin-left:5px}
 @media(max-width:650px){.hero>div:first-child{display:block}.hero-asterisk{right:0;top:40px;font-size:34px}}
 @media(max-width:365px){.hero-asterisk{right:0;top:40px;font-size:28px}.goal-card h2>svg{width:13px;margin-left:3px}}
+
+/* V2: score-chain feedback and collectible protection. */
+.hud-charge .combo-value{font:700 23px Consolas,monospace;line-height:1;color:#d5ff9c;margin-top:5px;text-shadow:0 0 16px #ccff8a25}
+.hud-charge>div{margin-top:5px}.surge-banner{background:#123e4ae8;border-color:#8deeff70;color:#b5f6ff;box-shadow:0 0 25px #67ddff16}.end-stats{gap:12px;flex-wrap:wrap}.end-panel .end-distance{font-size:68px}.game-tools .icon-button{min-width:30px;min-height:30px}
+@media(max-width:650px){.hud-charge .combo-value{font-size:20px}.hud-charge{display:block}.hud-charge>div{margin-top:5px}}
+.hud-energy{position:relative}.hud-energy .hud-points{position:absolute;right:0;top:23px;white-space:nowrap;font:8px Consolas,monospace;letter-spacing:.04em;color:#bcd8a2}.hud-energy>strong{animation:energy-pop .18s ease-out}.sound-button{width:auto;gap:7px;padding:8px 11px;border-radius:20px}.sound-label{font-size:10px;white-space:nowrap}.game-hud .hud-charge{display:block}
+@keyframes energy-pop{from{transform:scale(1.25);color:#fff}to{transform:scale(1)}}
+@media(max-width:650px){.sound-button{padding:7px 9px}.sound-label{font-size:8px}.sound-button svg{width:15px}}

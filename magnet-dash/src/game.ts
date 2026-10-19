@@ -1,20 +1,31 @@
-// World units are independent of canvas size. Ad decisions never alter physics or difficulty.
+// Seeded terrain and physics are independent of ads. All timings use active play time.
 export const WORLD_HEIGHT = 560;
 export const TOP_RAIL = 86;
 export const BOTTOM_RAIL = 480;
 export const ROBOT_RADIUS = 17;
 export const METERS_PER_UNIT = 0.08;
 export const FIXED_STEP = 1 / 120;
+export const START_SPEED = 440;
+export const MAX_SPEED = 680;
 
 export type Phase = 'ready' | 'playing' | 'paused' | 'over';
 export type Side = -1 | 1;
-export type Obstacle = { id: number; x: number; width: number; height: number; side: Side | 0 };
+export type Obstacle = {
+  id: number; x: number; width: number; height: number; side: Side | 0;
+  kind: 'wall' | 'laser' | 'drone'; passed: boolean; broken: boolean; closest: number;
+};
 export type Orb = { id: number; x: number; y: number; collected: boolean };
+export type Pickup = Orb & { kind: 'shield' };
+export type EffectKind = 'flip' | 'land' | 'coin' | 'combo' | 'near' | 'shield' | 'break' | 'crash';
+export type Effect = { id: number; kind: EffectKind; x: number; y: number; age: number; value: number };
 export type GameState = {
   phase: Phase; seed: number; random: number; distance: number; elapsed: number; speed: number;
-  y: number; vy: number; gravity: Side; flips: number; coins: number; charge: number;
-  surges: number; shield: number; rescued: boolean; crash: { x: number; y: number } | null;
-  obstacles: Obstacle[]; orbs: Orb[]; nextObstacleX: number; nextId: number;
+  y: number; vy: number; angle: number; gravity: Side; flips: number; coins: number;
+  chain: number; combo: number; maxCombo: number; bonus: number; dodged: number; nearMisses: number;
+  shield: number; shieldHits: number; rescued: boolean; crash: { x: number; y: number } | null;
+  obstacles: Obstacle[]; orbs: Orb[]; pickups: Pickup[]; effects: Effect[];
+  trail: { x: number; y: number }[]; effectId: number; nextObstacleX: number; nextId: number;
+  lastSide: Side;
 };
 
 function random(state: GameState) {
@@ -23,100 +34,130 @@ function random(state: GameState) {
   state.random = seed >>> 0;
   return state.random / 4294967296;
 }
-
+function emit(state: GameState, kind: EffectKind, x: number, y: number, value = 0) {
+  state.effects.push({ id: ++state.effectId, kind, x, y, age: 0, value });
+}
 function populate(state: GameState) {
-  while (state.nextObstacleX < state.distance + 2600) {
+  while (state.nextObstacleX < state.distance + 2800) {
     const id = state.nextId++;
-    const side: Side | 0 = id === 0 ? 1 : id % 5 === 4 ? 0 : random(state) > 0.5 ? 1 : -1;
-    const obstacle: Obstacle = { id, x: state.nextObstacleX, width: 64 + Math.floor(random(state) * 30), height: 78 + Math.floor(random(state) * 45), side };
+    // Opening zigzags teach the control immediately. Later hold beats and center
+    // drones break the rhythm; tall walls prevent indefinite center hovering.
+    const hold = id > 3 && id % 4 === 1 && random(state) > 0.35;
+    const side: Side | 0 = id === 0 ? 1 : id > 3 && id % 7 === 6 ? 0 : hold ? state.lastSide : state.lastSide === 1 ? -1 : 1;
+    if (side !== 0) state.lastSide = side;
+    const kind = side === 0 ? 'drone' : id % 3 === 2 ? 'laser' : 'wall';
+    const width = kind === 'laser' ? 36 : kind === 'drone' ? 72 : 65 + Math.floor(random(state) * 30);
+    const height = kind === 'laser' ? 275 : kind === 'drone' ? 155 : 220 + Math.floor(random(state) * 34);
+    const obstacle: Obstacle = { id, x: state.nextObstacleX, width, height, side, kind, passed: false, broken: false, closest: Infinity };
     state.obstacles.push(obstacle);
-    const safeY = side === 1 ? TOP_RAIL + 28 : BOTTOM_RAIL - 28;
-    state.orbs.push({ id: id * 2, x: obstacle.x - 160, y: safeY, collected: false });
-    state.orbs.push({ id: id * 2 + 1, x: obstacle.x + obstacle.width + 45, y: safeY, collected: false });
-    // A generous gap allows a full transfer even at maximum speed.
-    state.nextObstacleX += 550 + Math.floor(random(state) * 180);
+    const safeY = side === 1 ? TOP_RAIL + ROBOT_RADIUS + 2 : BOTTOM_RAIL - ROBOT_RADIUS - 2;
+    for (let index = 0; index < 3; index++) state.orbs.push({ id: id * 3 + index, x: obstacle.x - 80 + index * 65, y: safeY, collected: false });
+    // Cyan shield capsules are distinct physical pickups. Energy never grants one.
+    if (id % 11 === 5) state.pickups.push({ id, x: obstacle.x - 155, y: safeY, kind: 'shield', collected: false });
+    state.nextObstacleX += 430 + Math.floor(random(state) * 100) + (kind === 'drone' ? 60 : 0);
   }
 }
-
 export function createRun(seed = 1): GameState {
   const state: GameState = { phase: 'ready', seed: seed >>> 0 || 1, random: seed >>> 0 || 1,
-    distance: 0, elapsed: 0, speed: 235, y: BOTTOM_RAIL - ROBOT_RADIUS, vy: 0, gravity: 1,
-    flips: 0, coins: 0, charge: 0, surges: 0, shield: 0, rescued: false, crash: null,
-    obstacles: [], orbs: [], nextObstacleX: 900, nextId: 0 };
+    distance: 0, elapsed: 0, speed: START_SPEED, y: BOTTOM_RAIL - ROBOT_RADIUS, vy: 0, angle: 0, gravity: 1,
+    flips: 0, coins: 0, chain: 0, combo: 1, maxCombo: 1, bonus: 0, dodged: 0, nearMisses: 0,
+    shield: 0, shieldHits: 0, rescued: false, crash: null, obstacles: [], orbs: [], pickups: [], effects: [], trail: [],
+    effectId: 0, nextObstacleX: 560, nextId: 0, lastSide: -1 };
   populate(state);
   return state;
 }
-
-export function startRun(state: GameState): GameState {
-  return state.phase === 'ready' ? { ...state, phase: 'playing' } : state;
-}
-
+export function startRun(state: GameState): GameState { return state.phase === 'ready' ? { ...state, phase: 'playing' } : state; }
 export function flip(state: GameState): GameState {
   if (state.phase !== 'playing') return state;
-  return { ...state, gravity: state.gravity === 1 ? -1 : 1, vy: 0, flips: state.flips + 1 };
+  const gravity: Side = state.gravity === 1 ? -1 : 1;
+  const next = { ...state, gravity, vy: gravity * 1100, flips: state.flips + 1, effects: [...state.effects] };
+  emit(next, 'flip', state.distance, state.y);
+  return next;
 }
-
 export function togglePause(state: GameState): GameState {
   if (state.phase === 'playing') return { ...state, phase: 'paused' };
   if (state.phase === 'paused') return { ...state, phase: 'playing' };
   return state;
 }
-
-export function circleHitsRect(x: number, y: number, radius: number, left: number, top: number, width: number, height: number) {
-  const closestX = Math.max(left, Math.min(x, left + width));
-  const closestY = Math.max(top, Math.min(y, top + height));
-  return (x - closestX) ** 2 + (y - closestY) ** 2 < radius ** 2;
+export function obstacleTop(obstacle: Obstacle) {
+  return obstacle.side === 1 ? BOTTOM_RAIL - obstacle.height : obstacle.side === -1 ? TOP_RAIL : (TOP_RAIL + BOTTOM_RAIL - obstacle.height) / 2;
 }
-
+export function circleClearance(x: number, y: number, radius: number, left: number, top: number, width: number, height: number) {
+  return Math.hypot(x - Math.max(left, Math.min(x, left + width)), y - Math.max(top, Math.min(y, top + height))) - radius;
+}
+export function circleHitsRect(x: number, y: number, radius: number, left: number, top: number, width: number, height: number) {
+  return circleClearance(x, y, radius, left, top, width, height) < 0;
+}
 export function stepRun(previous: GameState, dt: number): GameState {
-  if (previous.phase !== 'playing' || !Number.isFinite(dt) || dt <= 0) return previous;
+  if (!Number.isFinite(dt) || dt <= 0 || previous.phase === 'ready' || previous.phase === 'paused') return previous;
+  if (previous.phase === 'over') return { ...previous, effects: previous.effects.map(e => ({ ...e, age: e.age + Math.min(dt, 0.1) })).filter(e => e.age < 0.9) };
   if (dt > FIXED_STEP + 1e-8) {
-    let remaining = Math.min(dt, 0.1);
-    let state = previous;
-    while (remaining > 1e-8 && state.phase === 'playing') {
-      const amount = Math.min(FIXED_STEP, remaining);
-      state = stepRun(state, amount);
-      remaining -= amount;
-    }
+    let remaining = Math.min(dt, 0.1), state = previous;
+    while (remaining > 1e-8 && state.phase === 'playing') { const amount = Math.min(FIXED_STEP, remaining); state = stepRun(state, amount); remaining -= amount; }
     return state;
   }
-  const state = { ...previous, obstacles: [...previous.obstacles], orbs: previous.orbs.map(orb => ({ ...orb })) };
+  const state: GameState = { ...previous, obstacles: previous.obstacles.map(o => ({ ...o })), orbs: previous.orbs.map(o => ({ ...o })),
+    pickups: previous.pickups.map(p => ({ ...p })), effects: previous.effects.map(e => ({ ...e, age: e.age + dt })).filter(e => e.age < 0.9) };
   state.elapsed += dt;
-  state.speed = Math.min(375, 235 + state.elapsed * 1.5);
+  state.speed = Math.min(MAX_SPEED, START_SPEED + state.elapsed * 6);
   state.distance += state.speed * dt;
-  state.vy = Math.max(-1050, Math.min(1050, state.vy + state.gravity * 2200 * dt));
+  state.vy = Math.max(-2200, Math.min(2200, state.vy + state.gravity * 5000 * dt));
+  const incomingVy = state.vy;
   state.y += state.vy * dt;
   if (state.y <= TOP_RAIL + ROBOT_RADIUS) { state.y = TOP_RAIL + ROBOT_RADIUS; state.vy = 0; }
   if (state.y >= BOTTOM_RAIL - ROBOT_RADIUS) { state.y = BOTTOM_RAIL - ROBOT_RADIUS; state.vy = 0; }
-  state.shield = Math.max(0, state.shield - dt);
+  if (state.vy === 0 && Math.abs(incomingVy) > 500) emit(state, 'land', state.distance, state.y);
+  state.angle += ((state.gravity === 1 ? 0 : Math.PI) - state.angle) * Math.min(1, dt * 24);
+  state.trail = [...previous.trail, { x: state.distance, y: state.y }].slice(-15);
   for (const orb of state.orbs) {
     if (!orb.collected && Math.hypot(orb.x - state.distance, orb.y - state.y) < ROBOT_RADIUS + 13) {
-      orb.collected = true; state.coins++; state.charge++;
-      if (state.charge === 5) { state.charge = 0; state.shield = 4; state.surges++; }
+      orb.collected = true; state.coins++; state.chain++;
+      const combo = Math.min(5, 1 + Math.floor(state.chain / 3));
+      if (combo > state.combo) emit(state, 'combo', state.distance, state.y, combo);
+      state.combo = combo; state.maxCombo = Math.max(state.maxCombo, combo);
+      const value = 10 * state.combo;
+      state.bonus += value; emit(state, 'coin', orb.x, orb.y, value);
+    } else if (!orb.collected && orb.x < state.distance - ROBOT_RADIUS - 13) {
+      orb.collected = true; state.chain = 0; state.combo = 1;
+    }
+  }
+  for (const pickup of state.pickups) {
+    if (!pickup.collected && Math.hypot(pickup.x - state.distance, pickup.y - state.y) < ROBOT_RADIUS + 18) {
+      pickup.collected = true; state.shield = 1; emit(state, 'shield', pickup.x, pickup.y);
     }
   }
   for (const obstacle of state.obstacles) {
-    const top = obstacle.side === 1 ? BOTTOM_RAIL - obstacle.height : obstacle.side === -1 ? TOP_RAIL : (TOP_RAIL + BOTTOM_RAIL - obstacle.height) / 2;
-    if (state.shield === 0 && circleHitsRect(state.distance, state.y, ROBOT_RADIUS - 2, obstacle.x, top, obstacle.width, obstacle.height)) {
-      state.phase = 'over'; state.crash = { x: state.distance, y: state.y }; break;
+    if (obstacle.broken || obstacle.passed) continue;
+    const top = obstacleTop(obstacle);
+    const clearance = circleClearance(state.distance, state.y, ROBOT_RADIUS - 2, obstacle.x, top, obstacle.width, obstacle.height);
+    if (state.distance > obstacle.x - ROBOT_RADIUS && state.distance < obstacle.x + obstacle.width + ROBOT_RADIUS) obstacle.closest = Math.min(obstacle.closest, clearance);
+    if (clearance < 0) {
+      if (state.shield > 0) {
+        state.shield = 0; state.shieldHits++; state.bonus += 50; obstacle.broken = true;
+        emit(state, 'break', obstacle.x + obstacle.width / 2, top + obstacle.height / 2, 50);
+      } else {
+        state.phase = 'over'; state.crash = { x: state.distance, y: state.y };
+        emit(state, 'crash', state.distance, state.y); break;
+      }
+    } else if (state.distance > obstacle.x + obstacle.width + ROBOT_RADIUS) {
+      obstacle.passed = true; state.dodged++; state.bonus += 5;
+      if (obstacle.closest > 0 && obstacle.closest < 24) { state.nearMisses++; const value = 25 * state.combo; state.bonus += value; emit(state, 'near', state.distance, state.y, value); }
     }
   }
-  state.obstacles = state.obstacles.filter(obstacle => obstacle.x + obstacle.width > state.distance - 200);
-  state.orbs = state.orbs.filter(orb => orb.x > state.distance - 200);
+  state.obstacles = state.obstacles.filter(o => o.x + o.width > state.distance - 200);
+  state.orbs = state.orbs.filter(o => o.x > state.distance - 200);
+  state.pickups = state.pickups.filter(p => p.x > state.distance - 200);
   populate(state);
   return state;
 }
-
 export function rescue(state: GameState): GameState {
   if (state.phase !== 'over' || state.rescued) return state;
-  return { ...state, phase: 'playing', rescued: true, shield: 2.5, crash: null,
-    obstacles: state.obstacles.filter(obstacle => obstacle.x > state.distance + 320),
+  return { ...state, phase: 'playing', rescued: true, shield: 0, crash: null, effects: [], trail: [],
+    obstacles: state.obstacles.filter(o => o.x > state.distance + 600),
     y: state.gravity === 1 ? BOTTOM_RAIL - ROBOT_RADIUS : TOP_RAIL + ROBOT_RADIUS, vy: 0 };
 }
-
 export function distanceMeters(state: GameState) { return Math.floor(state.distance * METERS_PER_UNIT); }
-export function score(state: GameState) { return distanceMeters(state) + state.coins * 10; }
-
+export function score(state: GameState) { return distanceMeters(state) + state.bonus; }
 export function dailySeed(date: string): number {
   let hash = 2166136261;
   for (const char of date) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }

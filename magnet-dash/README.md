@@ -1,6 +1,6 @@
 # Magnet Dash
 
-An original prototype for a one-tap arcade runner. A small magnetic robot runs through an industrial tunnel; tap to reverse its pull between the floor and ceiling. Collect five energy orbs for a four-second shield. Beat your distance, or practice a repeatable daily circuit.
+An original prototype for a one-tap arcade runner. A small magnetic robot runs through an industrial tunnel; tap to reverse its pull between the floor and ceiling. Chain energy for score multipliers, skim obstacles for close-call bonuses, and collect cyan capsules for a one-hit shield. Beat your distance, or practice a repeatable daily circuit.
 
 Working title and concept: commercial naming and competitor research are still needed. No proprietary code, artwork or ad algorithms from other games are used.
 
@@ -49,13 +49,19 @@ npm run test:browser     # Build + desktop, mobile, controls, storage, and offli
 
 Browser checks use Playwright with `/usr/bin/chromium` when available. Else set `CHROMIUM_PATH` or install Playwright's Chromium in the cloud. They start a temporary local server on port 4175, close it afterward, and save screenshots under ignored `test-results/`. The game itself has no Playwright dependency at runtime.
 
+## V2 playtest changes
+
+The runner now starts at 440 world units/second (previously 235), with the first obstacle about 1.2 seconds into a run (previously about 3.7). Tall alternating walls, thin laser gates, hold beats and center cargo demand repeated decisions. A full rail transfer takes less than 0.3 seconds; narrow screens show at least 680 world units so hazards remain readable. Thirty seeded minute-long routes are tested without shields, each requiring over forty flips.
+
+Feedback includes pickup bursts, rail-landing rings, trails, close-call bonuses, score-chain callouts, impact shake, rising energy tones and optional short touch haptics. Reduced-motion preferences suppress decorative effects; sound remains optional and starts muted. Best runs are preserved across the balance change, so earlier distances may reflect easier rules. Live ad behavior remains unchanged: none are served.
+
 ## Controls and rules
 
 - Tap/click the tunnel, press Space / Up / Down, or use the flip button to switch polarity.
 - Press P / Escape or use the pause button. Hiding the tab, opening instructions, or visiting the creator lab pauses an active run. Resume explicitly.
 - Pink obstacles end a run unless the shield is active. Flip early enough to cross the tunnel. Floating cargo appears later to vary the route.
-- Each energy orb adds ten points. Five orbs automatically activate a four-second shield; distance continues to increase normally.
-- One optional **demo** rescue clears nearby obstacles and grants 2.5 seconds of protection. No ad plays. Rescuing updates the same saved run rather than counting it twice.
+- Consecutive energy pickups build a score multiplier up to ×5; missing an orb resets it. Close passes earn skill bonuses. Cyan shield capsules are separate pickups and absorb exactly one collision. Energy never grants a shield.
+- One optional **demo** rescue clears the immediate route without granting a shield. No ad plays. Rescuing updates the same saved run rather than counting it twice.
 - Endless uses fresh seeds. Daily Circuit uses the browser's local calendar date, so the layout repeats that day. There is no global leaderboard or verified competitive scoring.
 
 Best distance, best score, sound preference, recent runs, and aggregate counts are saved locally in this browser. Sound starts muted. With browser storage disabled, play still works but persistent records are unavailable. Reduced-motion preferences suppress decorative movement; the core moving game remains visual.
@@ -70,7 +76,7 @@ See [the experiment plan](docs/MONETIZATION.md) for benchmarking, profitability 
 
 ## Structure
 
-- `src/game.ts`: seeded generation, fixed physics substeps, collisions, charge and rescue.
+- `src/game.ts`: seeded generation, fixed physics substeps, collisions, score chains, physical shield pickups and rescue.
 - `src/render.ts`: original vector tunnel and robot art; no external art assets.
 - `src/GamePanel.tsx`: animation loop, input, pause, audio triggers, and run events.
 - `src/storage.ts`: local personal bests and run accounting.
