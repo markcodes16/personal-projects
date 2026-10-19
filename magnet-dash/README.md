@@ -10,11 +10,11 @@ Working title and concept: commercial naming and competitor research are still n
 
 The self-contained game file is published in this public repository. An account-free rendering URL is available through raw.githack.com:
 
-https://raw.githack.com/markcodes16/personal-projects/6daf438bb64fbd466209363a7518ebd00202bb87/magnet-dash/demo/index.html
+https://raw.githack.com/markcodes16/personal-projects/main/magnet-dash/demo/index.html?v=2
 
 The live HTTPS preview returns HTTP 200 with an HTML content type and matches the tested standalone build byte-for-byte. The user confirmed that it plays successfully. Local desktop and mobile browser tests passed. Additional automated live-browser checks were blocked by the cloud Chromium profile's missing trust for the network proxy certificate; certificate verification was kept enabled. Node HTTPS checks use the supplied proxy and certificate configuration with `NODE_USE_ENV_PROXY=1`.
 
-This is a public prototype preview, not production hosting. The URL pins the published version. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then use its commit SHA in the preview URL.
+This is a public prototype preview, not production hosting. The preview URL follows the latest published main branch; a short CDN cache may apply. The V2 build was verified against commit 1d007158f7fb7e53323fe37307c1d5648e450e48. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then use its commit SHA in the preview URL.
 
 This environment-onboarding chat has no user-facing web-preview service. Workspace file links and a running cloud server do not produce a public website. Publishing the development environment saves its setup; it does not deploy the game.
 
