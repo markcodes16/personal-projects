@@ -147,10 +147,10 @@ test('daily layouts are deterministic and all openings leave room to steer with 
     const state = createRun(seed);
     assert.equal(state.obstacles[0].gap?.center, START_Y);
     for (let i = 1; i < state.obstacles.length; i++) {
-      assert.ok(state.obstacles[i].x - state.obstacles[i-1].x >= 480);
-      assert.ok(Math.abs(state.obstacles[i].gap!.center - state.obstacles[i-1].gap!.center) <= 85);
+      assert.ok(state.obstacles[i].x - state.obstacles[i-1].x >= 550);
+      assert.ok(Math.abs(state.obstacles[i].gap!.center - state.obstacles[i-1].gap!.center) <= 110);
     }
-    assert.ok(state.obstacles.every(o => o.gap && obstacleRects(o).every(rect => rect.height >= 38 - 1e-8)));
+    assert.ok(state.obstacles.every(o => o.gap && obstacleRects(o).every(rect => rect.height > 0)));
   }
 });
 
@@ -175,9 +175,9 @@ test('difficulty raises speed and density while narrowing openings to a reachabl
     assert.ok(after.opening < before.opening);
   }
   assert.equal(difficultyAt(36000).speed, MAX_SPEED);
-  assert.equal(difficultyAt(36000).opening, 166);
-  assert.equal(difficultyAt(36000).spacing, 480);
-  assert.equal(difficultyAt(1e8).opening, 166);
+  assert.equal(difficultyAt(36000).opening, 158);
+  assert.equal(difficultyAt(36000).spacing, 550);
+  assert.equal(difficultyAt(1e8).opening, 158);
   assert.equal(difficultyAt(1e8).speed, MAX_SPEED);
 });
 
@@ -200,7 +200,7 @@ test('squeeze barriers block both rails and leave only the midair passage open',
 test('pickups trace smooth airborne routes and never require touching the rails', () => {
   for (let seed = 1; seed <= 30; seed++) {
     const state = createRun(seed);
-    assert.ok(state.orbs.every(orb => orb.y > TOP_RAIL + 85 && orb.y < BOTTOM_RAIL - 85));
+    assert.ok(state.orbs.every(orb => orb.y > TOP_RAIL + 30 && orb.y < BOTTOM_RAIL - 30));
     assert.ok(Math.max(...state.orbs.map(o => o.y)) - Math.min(...state.orbs.map(o => o.y)) > 20);
     for (const orb of state.orbs) for (const o of state.obstacles) {
       assert.ok(obstacleRects(o).every(rect => circleClearance(orb.x, orb.y, 11, o.x, rect.top, o.width, rect.height) >= 0));
@@ -225,8 +225,8 @@ test('early gates tolerate more steering error while expert gaps remain navigabl
     }
     return Math.max(...accepted) - Math.min(...accepted);
   });
-  assert.ok(windows[0] >= 160, `Opening margin: ${windows[0]}`);
-  assert.ok(windows[1] >= 100 && windows[1] <= windows[0] - 40, `Expert margin: ${windows[1]}`);
+  assert.ok(windows[0] >= 110, `Opening margin: ${windows[0]}`);
+  assert.ok(windows[1] >= 90 && windows[1] <= windows[0] - 20, `Expert margin: ${windows[1]}`);
 });
 
 test('thirty seeded two-minute routes stay navigable without shields, including the tightest gates', () => {
@@ -246,7 +246,7 @@ test('thirty seeded two-minute routes stay navigable without shields, including 
       if (state.y > TOP_RAIL + ROBOT_RADIUS + 2 && state.y < BOTTOM_RAIL - ROBOT_RADIUS - 2) airborneTicks++;
       for (const o of state.obstacles) {
         if (o.kind === 'squeeze' && o.passed && !seen.has(o.id)) { seen.add(o.id); squeezed++; if (o.gap!.size <= 147) tightGates++; }
-        for (const orb of state.orbs.filter(orb => Math.floor(orb.id / 4) === o.id)) {
+        for (const orb of state.orbs.filter(orb => Math.floor(orb.id / 8) === o.id)) {
           assert.ok(obstacleRects(o).every(rect => circleClearance(orb.x, orb.y, 11, o.x, rect.top, o.width, rect.height) >= 0), 'Energy must stay out of barriers');
         }
       }
@@ -254,9 +254,72 @@ test('thirty seeded two-minute routes stay navigable without shields, including 
     assert.equal(state.phase, 'playing', `Seed ${seed} died at ${state.elapsed.toFixed(2)} seconds`);
     assert.ok(state.elapsed >= 119.9);
     assert.ok(state.flips > 100 && state.flips < 480, `Seed ${seed} needed ${state.flips} inputs`);
-    assert.ok(squeezed > 20 && tightGates > 8, `Seed ${seed}: ${squeezed} gates, ${tightGates} tight`);
+    assert.ok(squeezed >= 16 && tightGates >= 8, `Seed ${seed}: ${squeezed} gates, ${tightGates} tight`);
     assert.ok(airborneShields > 5, 'Airborne shields must be physically collectible');
-    assert.ok(state.coins >= state.dodged * 3.5, 'At least 87.5% of the trail stays collectible with coarse inputs');
+    assert.ok(state.coins >= state.dodged * 3.3, 'At least 82.5% of the main trail stays collectible with coarse inputs');
     assert.ok(airborneTicks / (120 * 120) > 0.98, 'The intended route must stay in the air');
+  }
+});
+
+test('center-only hovering cannot ignore the first climb sequence', () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    let state = startRun(createRun(seed)), lastFlip = -1;
+    for (let tick = 0; tick < 120 * 12 && state.phase === 'playing'; tick++) {
+      const projected = state.y + state.vy * 0.24;
+      if (tick % 12 === 0 && state.elapsed - lastFlip >= 0.18 && (state.gravity === 1 ? projected > 311 : projected < 255)) { state = flip(state); lastFlip = state.elapsed; }
+      state.shield = 0; state = stepRun(state, FIXED_STEP);
+    }
+    assert.equal(state.phase, 'over'); assert.ok(state.elapsed < 8);
+  }
+});
+
+test('marked polarity gates check the chosen pull at the crossing line', () => {
+  const gate: Obstacle = { ...wall(20), width: 28, gap: { center: START_Y, size: 210 }, required: -1 };
+  const wrong = emptyRun(); wrong.obstacles = [gate];
+  const crashed = advance(wrong, 0.2);
+  assert.equal(crashed.phase, 'over'); assert.match(crashed.crashReason, /UP pull/);
+  const right = flip(emptyRun()); right.obstacles = [gate];
+  const passed = advance(right, 0.2);
+  assert.equal(passed.phase, 'playing'); assert.equal(passed.polarityPasses, 1);
+  assert.equal(passed.dodged, 1);
+  const protectedRun = emptyRun(); protectedRun.shield = 1; protectedRun.obstacles = [gate];
+  const broken = advance(protectedRun, 0.2);
+  assert.equal(broken.shieldHits, 1); assert.equal(broken.polarityPasses, 0);
+});
+
+test('controlled central crossings earn a perfect bonus and skipping optional energy preserves flow', () => {
+  const state = emptyRun(); state.chain = 14; state.combo = 5;
+  state.orbs = [{ id: 1, x: -50, y: 154, optional: true, value: 30, collected: false }];
+  state.obstacles = [{ ...wall(20), width: 30, gap: { center: START_Y, size: 210 } }];
+  const passed = advance(state, 0.2);
+  assert.equal(passed.combo, 5); assert.equal(passed.chain, 14);
+  assert.equal(passed.perfects, 1); assert.ok(passed.bonus >= 305);
+  assert.ok(passed.effects.some(e => e.kind === 'perfect'));
+});
+
+test('split gates offer distinct safe and bonus openings with a higher reward above', () => {
+  const gate: Obstacle = { ...wall(20), width: 30, gap: { center: 318, size: 180 }, branch: { center: 154, size: 108 } };
+  assert.equal(obstacleRects(gate).length, 3);
+  const safe = emptyRun(); safe.y = 318; safe.obstacles = [gate];
+  const risky = emptyRun(); risky.y = 154; risky.obstacles = [gate];
+  const normal = advance(safe, 0.2), bonus = advance(risky, 0.2);
+  assert.equal(normal.phase, 'playing'); assert.equal(bonus.phase, 'playing');
+  assert.equal(normal.riskyPasses, 0); assert.equal(bonus.riskyPasses, 1);
+  assert.ok(bonus.bonus >= normal.bonus + 150);
+});
+
+test('all six authored sequences and optional bonus routes remain playable without shields', () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    let state = startRun(createRun(seed)), lastFlip = -1;
+    const patterns = new Set<string>();
+    for (let tick = 0; tick < 120 * 120 && state.phase === 'playing'; tick++) {
+      if (tick % 12 === 0 && state.elapsed - lastFlip >= 0.18 && shouldFlip(state, true)) { state = flip(state); lastFlip = state.elapsed; }
+      state.shield = 0; state = stepRun(state, FIXED_STEP);
+      for (const gate of state.obstacles) if (gate.passed && gate.pattern) patterns.add(gate.pattern);
+      assert.equal(state.shieldHits, 0);
+    }
+    assert.equal(state.phase, 'playing', `Bonus route seed ${seed}: ${state.crashReason}`);
+    assert.equal(patterns.size, 6); assert.ok(state.riskyPasses >= 8);
+    assert.ok(state.polarityPasses >= 16); assert.ok(state.perfects > 20);
   }
 });

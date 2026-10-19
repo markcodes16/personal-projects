@@ -1,5 +1,5 @@
 let context: AudioContext | undefined;
-type Cue = 'start' | 'flip' | 'land' | 'coin' | 'combo' | 'near' | 'shield' | 'break' | 'crash';
+type Cue = 'start' | 'flip' | 'land' | 'coin' | 'combo' | 'near' | 'shield' | 'break' | 'crash' | 'perfect' | 'risk';
 
 // A single mixer limits dense pickup clusters without delaying important cues.
 // Reaching a multiplier gets a chord; maintaining it gets a short, soft tick.
@@ -14,11 +14,11 @@ export function createCueMixer() {
     last.set(kind, now);
     const root = { start: 360, flip: 240, land: 110,
       coin: (capped ? [392, 440, 494, 440] : [494, 554, 587, 659])[coinIndex % 4],
-      combo: 520, near: 660, shield: 440, break: 180, crash: 100 }[kind];
+      combo: 520, near: 660, shield: 440, break: 180, crash: 100, perfect: 450, risk: 523 }[kind];
     if (kind === 'coin') coinIndex++;
-    return { root, notes: kind === 'combo' || kind === 'shield' ? [0, 4, 7] : [0],
-      volume: kind === 'coin' ? (capped ? 0.01 : 0.022) : kind === 'land' ? 0.009 : kind === 'flip' ? 0.022 : 0.032,
-      duration: kind === 'coin' ? (capped ? 0.065 : 0.1) : 0.16,
+    return { root, notes: kind === 'combo' || kind === 'shield' ? [0, 4, 7] : kind === 'risk' ? [0, 7] : [0],
+      volume: kind === 'coin' ? (capped ? 0.01 : 0.022) : kind === 'land' ? 0.009 : kind === 'perfect' ? 0.014 : kind === 'flip' || kind === 'risk' ? 0.022 : 0.032,
+      duration: kind === 'coin' ? (capped ? 0.065 : 0.1) : kind === 'perfect' ? 0.09 : 0.16,
       sweep: kind === 'crash' || kind === 'land' ? 0.35 : kind === 'flip' ? 1.7 : kind === 'coin' ? 1.02 : 1.2,
       wave: kind === 'crash' || kind === 'break' || kind === 'land' ? 'triangle' as const : 'sine' as const };
   };

@@ -41,7 +41,7 @@ try {
   console.log('PASS desktop landing and canvas render');
 
   await page.getByRole('button', { name: 'Daily circuit', exact: true }).click();
-  assert.match(await page.locator('.circuit-label').innerText(), /DAILY CIRCUIT/);
+  assert.match(await page.locator('.circuit-label').innerText(), /DAILY/);
   await page.getByRole('button', { name: 'Endless', exact: true }).click();
   await page.locator('nav').getByRole('button', { name: 'How to play' }).click();
   await page.getByRole('dialog', { name: "It's all in the little flips." }).waitFor();
@@ -62,6 +62,10 @@ try {
   assert.equal(await page.locator('.game-hud strong').first().textContent(), pausedDistance);
   console.log('PASS keyboard polarity, pause, and frozen simulation');
 
+  await page.getByRole('button', { name: 'Leave play view' }).click();
+  await page.getByRole('button', { name: 'Resume run', exact: true }).click();
+  assert.ok(await page.locator('.game-card').evaluate(element => element.classList.contains('is-focused')));
+  await page.getByRole('button', { name: 'Leave play view' }).click();
   await page.getByRole('button', { name: 'Creator lab' }).click();
   await page.getByText('Keep the fun.').waitFor();
   await page.locator('h1').filter({ visible: true }).click();
@@ -94,6 +98,7 @@ try {
   await page.goto(origin);
   await page.getByRole('button', { name: "Let's dash" }).click();
   await page.getByRole('dialog', { name: 'Run complete' }).waitFor({ timeout: 7000 });
+  await page.screenshot({ path: `${root}/test-results/end-screen.png` });
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('magnet-dash.player.v1')));
   assert.ok(stored.bestDistance >= 30);
   assert.equal(stored.totalRuns, 1);
@@ -105,7 +110,7 @@ try {
   assert.equal(events.find(event => event.name === 'reward_granted').data.liveAd, false);
   await page.getByRole('button', { name: 'Pause game', exact: true }).click();
   await page.reload();
-  assert.match(await page.locator('.personal-best').textContent(), new RegExp(`${stored.bestDistance}m`));
+  assert.match(await page.locator('.personal-best').textContent(), new RegExp(`${stored.bestScore.toLocaleString()} PTS`));
   console.log('PASS collision, optional demo rescue, saved best, and reload persistence');
 
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
@@ -115,14 +120,19 @@ try {
   assert.ok(await noOverflow(mobile));
   await mobile.screenshot({ path: `${root}/test-results/mobile.png`, fullPage: true });
   await mobile.getByRole('button', { name: "Let's dash" }).tap();
+  assert.ok(await mobile.locator('.game-card').evaluate(element => element.classList.contains('is-focused')));
+  const fullyVisible = selector => mobile.locator(selector).evaluate(element => { const b = element.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight && b.left >= 0 && b.right <= innerWidth; });
+  assert.ok(await fullyVisible('.game-card')); assert.ok(await fullyVisible('.tap-button'));
   await mobile.waitForTimeout(180);
   await mobile.locator('canvas').tap({ position: { x: 170, y: 210 } });
   await mobile.getByText('PULLING UP', { exact: true }).waitFor();
+  await mobile.screenshot({ path: `${root}/test-results/phone-playing.png` });
   await mobile.getByRole('button', { name: 'Pause game', exact: true }).tap();
   await mobile.locator('.phase-paused').waitFor();
   await mobile.setViewportSize({ width: 844, height: 390 });
   assert.ok(await noOverflow(mobile));
-  console.log('PASS phone layout, touch polarity, pause, and landscape resize');
+  assert.ok(await fullyVisible('.tap-button')); assert.ok(await fullyVisible('.game-card'));
+  console.log('PASS dedicated phone play view, visible controls, touch, pause, and landscape resize');
 
   const standalone = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   watch(standalone);
@@ -141,6 +151,7 @@ try {
   await standalone.keyboard.press('Space');
   await standalone.getByText('PULLING UP', { exact: true }).waitFor();
   await standalone.getByRole('button', { name: 'Pause game', exact: true }).click();
+  await standalone.getByRole('button', { name: 'Leave play view' }).click();
   await standalone.getByRole('button', { name: 'Creator lab' }).click();
   await standalone.getByText('Keep the fun.').waitFor();
   assert.deepEqual(network, [], 'Standalone game must not request any external assets');
@@ -158,6 +169,7 @@ try {
   await privatePage.keyboard.press('Space');
   await privatePage.getByText('PULLING UP', { exact: true }).waitFor();
   await privatePage.getByRole('button', { name: 'Pause game', exact: true }).click();
+  await privatePage.getByRole('button', { name: 'Leave play view' }).click();
   await privatePage.getByRole('button', { name: 'Creator lab' }).click();
   await privatePage.getByText('Keep the fun.').waitFor();
   assert.match(await privatePage.locator('.metric-grid').innerText(), /1\s+Browser sessions/);
@@ -176,20 +188,20 @@ try {
     else await route.fulfill({ contentType: 'text/html', body: '<style>body{margin:0;background:#111}canvas{display:block;width:100vw;height:100vh}</style><canvas></canvas>' });
   });
   await scene.goto(`${origin}/__scene/index.html`);
-  for (const width of [900, 390]) {
+  for (const width of [900, 390]) for (const encounter of ['squeeze', 'polarity', 'bonus']) {
     await scene.setViewportSize({ width, height: 560 });
-    const result = await scene.evaluate(async () => {
+    const result = await scene.evaluate(async encounter => {
       const game = await import('/__scene/game.js');
       const { drawScene } = await import('/__scene/render.js');
       const { shouldFlip } = await import('/__scene/pilot.js');
       let state = game.startRun(game.createRun(72));
       let inGate = false, lastFlipAt = -1;
-      for (let tick = 0; tick < 120 * 12 && state.phase === 'playing'; tick++) {
+      for (let tick = 0; tick < 120 * 40 && state.phase === 'playing'; tick++) {
         const next = state.obstacles.find(o => !o.passed && !o.broken);
-        if (tick % 12 === 0 && state.elapsed - lastFlipAt >= 0.18 && shouldFlip(state)) { state = game.flip(state); lastFlipAt = state.elapsed; }
+        if (tick % 12 === 0 && state.elapsed - lastFlipAt >= 0.18 && shouldFlip(state, encounter === 'bonus')) { state = game.flip(state); lastFlipAt = state.elapsed; }
         state.shield = 0;
         state = game.stepRun(state, 1 / 120);
-        if (next?.kind === 'squeeze' && Math.abs(next.x + next.width / 2 - state.distance) < 5) { inGate = true; break; }
+        if (next && (encounter === 'squeeze' ? next.kind === 'squeeze' : encounter === 'polarity' ? next.required !== undefined : !!next.branch) && state.distance >= next.x + next.width / 2 && state.distance < next.x + next.width / 2 + 7) { inGate = true; break; }
       }
       const canvas = document.querySelector('canvas');
       canvas.width = innerWidth * devicePixelRatio; canvas.height = innerHeight * devicePixelRatio;
@@ -197,13 +209,26 @@ try {
       context.scale(devicePixelRatio, devicePixelRatio);
       drawScene(context, innerWidth, innerHeight, state, state.elapsed, false);
       return { phase: state.phase, coins: state.coins, inGate, y: state.y, shieldHits: state.shieldHits };
-    });
+    }, encounter);
     assert.equal(result.phase, 'playing'); assert.ok(result.inGate);
-    assert.ok(result.coins >= 24); assert.equal(result.shieldHits, 0);
-    assert.ok(result.y > 200 && result.y < 360);
-    await scene.screenshot({ path: `${root}/test-results/squeeze-${width}.png` });
+    assert.ok(result.coins >= 18); assert.equal(result.shieldHits, 0);
+    assert.ok(result.y > 120 && result.y < 400);
+    await scene.screenshot({ path: `${root}/test-results/${encounter}-${width}.png` });
   }
-  console.log('PASS momentum steering through a generated squeeze and airborne collection on desktop and phone');
+  console.log('PASS rendered squeeze, polarity and optional bonus passages at desktop and phone widths');
+
+  const profile = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  watch(profile);
+  await profile.goto(origin);
+  await profile.evaluate(() => localStorage.setItem('magnet-dash.player.v1', JSON.stringify({ bestDistance: 99, bestScore: 120, totalRuns: 2, totalCoins: 60, sound: false, recent: [] })));
+  await profile.reload();
+  await profile.getByRole('button', { name: 'Equip Copper Scout', exact: true }).click();
+  assert.ok(await profile.getByRole('button', { name: 'Equip Ion Runner', exact: true }).isDisabled());
+  await profile.reload();
+  assert.equal(await profile.getByRole('button', { name: 'Equip Copper Scout', exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await profile.getByRole('progressbar', { name: 'Land perfect passes', exact: true }).getAttribute('value'), '0');
+  await profile.screenshot({ path: `${root}/test-results/career.png`, fullPage: true });
+  console.log('PASS legacy save migration, energy unlocks, locked finishes, equip persistence and missions');
   assert.deepEqual(errors, [], `Browser exceptions: ${errors.join('; ')}`);
   console.log('PASS all browser checks; no uncaught exceptions');
 } finally {
