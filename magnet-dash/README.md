@@ -10,11 +10,11 @@ Working title and concept: commercial naming and competitor research are still n
 
 The self-contained game file is published in this public repository. An account-free rendering URL is available through raw.githack.com:
 
-https://raw.githack.com/markcodes16/personal-projects/0f6a6c473225fa4ecdeb72b2f5b34d0c0f59e7fc/magnet-dash/demo/index.html
+https://raw.githack.com/markcodes16/personal-projects/f35610416a75eea9df3d7aabae56e46b50010816/magnet-dash/demo/index.html
 
-The V4 public preview returned HTTP 200 with an HTML content type and matched the tested standalone HTML byte-for-byte (SHA-256 `179d597f57329549b815a9f2e3a3427c47348df1ad8658ca7364215a55ecd16d`). The user confirmed the prior version plays successfully. Local desktop and mobile browser tests exercise the current version. Additional automated live-browser checks were blocked by the cloud Chromium profile's missing trust for the network proxy certificate; certificate verification was kept enabled. Node HTTPS checks use the supplied proxy and certificate configuration with `NODE_USE_ENV_PROXY=1`.
+The V5 public preview returned HTTP 200 with an HTML content type and matched the tested standalone HTML byte-for-byte (SHA-256 `ddf19863c2f8f6ae6491afcf4f07608b8d255cfdf7d5428b48195cb8a3f2cacb`). The user confirmed the prior version plays successfully. Local desktop and mobile browser tests exercise the current version. Additional automated live-browser checks were blocked by the cloud Chromium profile's missing trust for the network proxy certificate; certificate verification was kept enabled. Node HTTPS checks use the supplied proxy and certificate configuration with `NODE_USE_ENV_PROXY=1`.
 
-This is a public prototype preview, not production hosting. The preview URL is pinned to the verified V4 commit; main-branch URLs may temporarily serve an older CDN cache even with a new query string. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then verify its commit-specific rendering URL against the local artifact before sharing it. Request that URL only after the push finishes; early requests can cache a 404.
+This is a public prototype preview, not production hosting. The preview URL is pinned to the verified V5 commit; main-branch URLs may temporarily serve an older CDN cache even with a new query string. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then verify its commit-specific rendering URL against the local artifact before sharing it. Request that URL only after the push finishes; early requests can cache a 404.
 
 This environment-onboarding chat has no user-facing web-preview service. Workspace file links and a running cloud server do not produce a public website. Publishing the development environment saves its setup; it does not deploy the game.
 
