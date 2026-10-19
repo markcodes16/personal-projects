@@ -14,8 +14,8 @@ test('finishes unlock at energy boundaries and unavailable saved choices fall ba
 
 test('mission milestones advance when completed and keep lifetime progress visible', () => {
   const first = missions(initialPlayer);
-  const next = missions({ ...initialPlayer, totalCoins: 60, totalPerfects: 6, totalPolarity: 4 });
-  assert.deepEqual(first.map(m => m.target), [60, 6, 4]);
-  assert.deepEqual(next.map(m => m.target), [120, 12, 8]);
-  assert.deepEqual(next.map(m => m.value), [60, 6, 4]);
+  const next = missions({ ...initialPlayer, totalCoins: 60, totalPerfects: 6, totalRisky: 3 });
+  assert.deepEqual(first.map(m => m.target), [60, 6, 3]);
+  assert.deepEqual(next.map(m => m.target), [120, 12, 6]);
+  assert.deepEqual(next.map(m => m.value), [60, 6, 3]);
 });

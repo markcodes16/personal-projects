@@ -14,6 +14,6 @@ export function missions(player: PlayerData) {
   return [
     { id: 'energy', title: 'Collect energy', value: player.totalCoins, target: next(player.totalCoins, 60), unit: 'collected across runs' },
     { id: 'perfect', title: 'Land perfect passes', value: player.totalPerfects, target: next(player.totalPerfects, 6), unit: 'clean, controlled crossings' },
-    { id: 'polarity', title: 'Master polarity gates', value: player.totalPolarity, target: next(player.totalPolarity, 4), unit: 'match the marked pull' },
+    { id: 'bonus', title: 'Explore bonus routes', value: player.totalRisky, target: next(player.totalRisky, 3), unit: 'optional upper passages' },
   ];
 }

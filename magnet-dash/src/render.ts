@@ -118,15 +118,6 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       ctx.save(); ctx.translate(x + obstacle.width / 2, obstacle.branch.center - obstacle.branch.size / 2 - 13); ctx.scale(1 / horizontalZoom, 1);
       ctx.font = 'bold 10px monospace'; ctx.fillStyle = '#ffe3a1'; ctx.textAlign = 'center'; ctx.fillText('BONUS ↑', 0, 0); ctx.restore();
     }
-    if (obstacle.required !== undefined && obstacle.gap) {
-      const correct = state.gravity === obstacle.required;
-      const color = obstacle.required === -1 ? '#c4b2ff' : '#d4ff99';
-      ctx.save(); ctx.globalAlpha = correct ? 0.16 : 0.5; ctx.fillStyle = color;
-      ctx.fillRect(x + obstacle.width / 2 - 2, obstacle.gap.center - obstacle.gap.size / 2, 4, obstacle.gap.size); ctx.restore();
-      ctx.save(); ctx.translate(x + obstacle.width / 2, obstacle.gap.center); ctx.scale(1 / horizontalZoom, 1);
-      rect(ctx, -30, -14, 60, 28, 7, '#15202eee'); ctx.fillStyle = color; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
-      ctx.fillText(obstacle.required === -1 ? '↑ UP' : '↓ DOWN', 0, 5); ctx.restore();
-    }
   }
   for (const orb of orbs) {
     const x = playerX + orb.x - offset;

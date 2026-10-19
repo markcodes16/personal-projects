@@ -188,7 +188,7 @@ try {
     else await route.fulfill({ contentType: 'text/html', body: '<style>body{margin:0;background:#111}canvas{display:block;width:100vw;height:100vh}</style><canvas></canvas>' });
   });
   await scene.goto(`${origin}/__scene/index.html`);
-  for (const width of [900, 390]) for (const encounter of ['squeeze', 'polarity', 'bonus']) {
+  for (const width of [900, 390]) for (const encounter of ['squeeze', 'drift', 'bonus']) {
     await scene.setViewportSize({ width, height: 560 });
     const result = await scene.evaluate(async encounter => {
       const game = await import('/__scene/game.js');
@@ -201,7 +201,7 @@ try {
         if (tick % 12 === 0 && state.elapsed - lastFlipAt >= 0.18 && shouldFlip(state, encounter === 'bonus')) { state = game.flip(state); lastFlipAt = state.elapsed; }
         state.shield = 0;
         state = game.stepRun(state, 1 / 120);
-        if (next && (encounter === 'squeeze' ? next.kind === 'squeeze' : encounter === 'polarity' ? next.required !== undefined : !!next.branch) && state.distance >= next.x + next.width / 2 && state.distance < next.x + next.width / 2 + 7) { inGate = true; break; }
+        if (next && (encounter === 'squeeze' ? next.kind === 'squeeze' : encounter === 'drift' ? next.pattern === 'DRIFT' : !!next.branch) && state.distance >= next.x + next.width / 2 && state.distance < next.x + next.width / 2 + 7) { inGate = true; break; }
       }
       const canvas = document.querySelector('canvas');
       canvas.width = innerWidth * devicePixelRatio; canvas.height = innerHeight * devicePixelRatio;
@@ -215,7 +215,7 @@ try {
     assert.ok(result.y > 120 && result.y < 400);
     await scene.screenshot({ path: `${root}/test-results/${encounter}-${width}.png` });
   }
-  console.log('PASS rendered squeeze, polarity and optional bonus passages at desktop and phone widths');
+  console.log('PASS rendered squeeze, drift and optional bonus passages at desktop and phone widths');
 
   const profile = await browser.newPage({ viewport: { width: 390, height: 844 } });
   watch(profile);
@@ -228,6 +228,8 @@ try {
   assert.equal(await profile.getByRole('button', { name: 'Equip Copper Scout', exact: true }).getAttribute('aria-pressed'), 'true');
   assert.equal(await profile.getByRole('progressbar', { name: 'Land perfect passes', exact: true }).getAttribute('value'), '0');
   await profile.screenshot({ path: `${root}/test-results/career.png`, fullPage: true });
+  assert.equal(await profile.getByRole('progressbar', { name: 'Master polarity gates', exact: true }).count(), 0);
+  assert.equal(await profile.getByRole('progressbar', { name: 'Explore bonus routes', exact: true }).count(), 1);
   console.log('PASS legacy save migration, energy unlocks, locked finishes, equip persistence and missions');
   assert.deepEqual(errors, [], `Browser exceptions: ${errors.join('; ')}`);
   console.log('PASS all browser checks; no uncaught exceptions');

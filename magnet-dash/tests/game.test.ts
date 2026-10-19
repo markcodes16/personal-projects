@@ -245,6 +245,8 @@ test('thirty seeded two-minute routes stay navigable without shields, including 
       if (state.shield) airborneShields++;
       if (state.y > TOP_RAIL + ROBOT_RADIUS + 2 && state.y < BOTTOM_RAIL - ROBOT_RADIUS - 2) airborneTicks++;
       for (const o of state.obstacles) {
+        assert.ok(!('required' in o), 'Generated obstacles must not require a selected pull');
+        assert.notEqual(o.pattern, 'POLARITY');
         if (o.kind === 'squeeze' && o.passed && !seen.has(o.id)) { seen.add(o.id); squeezed++; if (o.gap!.size <= 147) tightGates++; }
         for (const orb of state.orbs.filter(orb => Math.floor(orb.id / 8) === o.id)) {
           assert.ok(obstacleRects(o).every(rect => circleClearance(orb.x, orb.y, 11, o.x, rect.top, o.width, rect.height) >= 0), 'Energy must stay out of barriers');
@@ -273,18 +275,14 @@ test('center-only hovering cannot ignore the first climb sequence', () => {
   }
 });
 
-test('marked polarity gates check the chosen pull at the crossing line', () => {
-  const gate: Obstacle = { ...wall(20), width: 28, gap: { center: START_Y, size: 210 }, required: -1 };
-  const wrong = emptyRun(); wrong.obstacles = [gate];
-  const crashed = advance(wrong, 0.2);
-  assert.equal(crashed.phase, 'over'); assert.match(crashed.crashReason, /UP pull/);
-  const right = flip(emptyRun()); right.obstacles = [gate];
-  const passed = advance(right, 0.2);
-  assert.equal(passed.phase, 'playing'); assert.equal(passed.polarityPasses, 1);
-  assert.equal(passed.dodged, 1);
-  const protectedRun = emptyRun(); protectedRun.shield = 1; protectedRun.obstacles = [gate];
-  const broken = advance(protectedRun, 0.2);
-  assert.equal(broken.shieldHits, 1); assert.equal(broken.polarityPasses, 0);
+test('clear openings accept either gravity direction without a polarity check', () => {
+  for (const gravity of [-1, 1] as const) {
+    const state = emptyRun(); state.gravity = gravity;
+    state.obstacles = [{ ...wall(20), width: 28, gap: { center: START_Y, size: 210 } }];
+    const passed = advance(state, 0.2);
+    assert.equal(passed.phase, 'playing'); assert.equal(passed.dodged, 1);
+    assert.equal(passed.shieldHits, 0);
+  }
 });
 
 test('controlled central crossings earn a perfect bonus and skipping optional energy preserves flow', () => {
@@ -320,6 +318,6 @@ test('all six authored sequences and optional bonus routes remain playable witho
     }
     assert.equal(state.phase, 'playing', `Bonus route seed ${seed}: ${state.crashReason}`);
     assert.equal(patterns.size, 6); assert.ok(state.riskyPasses >= 8);
-    assert.ok(state.polarityPasses >= 16); assert.ok(state.perfects > 20);
+    assert.ok(state.perfects > 20);
   }
 });

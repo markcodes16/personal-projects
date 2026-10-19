@@ -16,16 +16,16 @@ function benchmark(driver: 'middle' | 'main' | 'bonus') {
       if (state.y > TOP_RAIL + ROBOT_RADIUS + 2 && state.y < BOTTOM_RAIL - ROBOT_RADIUS - 2) airborne++;
     }
     runs.push({ seed, seconds: +state.elapsed.toFixed(2), survived: state.phase === 'playing', score: score(state), energy: state.coins,
-      gates: state.dodged, perfects: state.perfects, bonusRoutes: state.riskyPasses, polarityGates: state.polarityPasses,
+      gates: state.dodged, perfects: state.perfects, bonusRoutes: state.riskyPasses,
       tapsPerSecond: +(state.flips / state.elapsed).toFixed(2), airborneShare: +(airborne / ticks).toFixed(3), shieldHits: state.shieldHits, crashReason: state.crashReason });
   }
   const mean = (field: 'seconds' | 'score' | 'energy' | 'tapsPerSecond' | 'airborneShare') => +(runs.reduce((sum, run) => sum + run[field], 0) / runs.length).toFixed(2);
   return { driver, survivedTwoMinutes: runs.filter(run => run.survived).length, averageSeconds: mean('seconds'), averageScore: mean('score'), averageEnergy: mean('energy'), averageTapsPerSecond: mean('tapsPerSecond'), averageAirborneShare: mean('airborneShare'), runs };
 }
 const main = benchmark('main'), bonus = benchmark('bonus'), middle = benchmark('middle');
-const report = { version: 5, seeds: 30, decisionIntervalMs: 100, minimumTapIntervalMs: 180, shieldsDisabled: true,
+const report = { version: 5.1, seeds: 30, decisionIntervalMs: 100, minimumTapIntervalMs: 180, shieldsDisabled: true,
   limitations: 'Automated visible-route controllers establish reachability only. No human retention, device performance population, or revenue is measured.',
   oldMiddleAverageSeconds: 42.34, middle, main, bonus,
   bonusScoreLiftPercent: +((bonus.averageScore / main.averageScore - 1) * 100).toFixed(1) };
-writeFileSync(new URL('../docs/PLAYTEST_V5.json', import.meta.url), JSON.stringify(report, null, 2) + '\n');
+writeFileSync(new URL('../docs/PLAYTEST_V5_1.json', import.meta.url), JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify({ ...report, middle: { ...middle, runs: undefined }, main: { ...main, runs: undefined }, bonus: { ...bonus, runs: undefined } }, null, 2));

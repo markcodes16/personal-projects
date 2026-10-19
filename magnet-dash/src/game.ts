@@ -15,7 +15,7 @@ export const START_Y = (TOP_RAIL + BOTTOM_RAIL) / 2;
 
 export type Phase = 'ready' | 'playing' | 'paused' | 'over';
 export type Side = -1 | 1;
-export const PATTERNS = ['CLIMB', 'DIVE', 'WEAVE', 'SQUEEZE', 'POLARITY', 'RECOVERY'] as const;
+export const PATTERNS = ['CLIMB', 'DIVE', 'WEAVE', 'SQUEEZE', 'DRIFT', 'RECOVERY'] as const;
 export const SECTORS = [
   { name: 'COPPER WORKS', top: '#221b2d', bottom: '#253128', accent: '#e6b88c' },
   { name: 'ION CHANNEL', top: '#191d3b', bottom: '#17313d', accent: '#90dfff' },
@@ -26,7 +26,7 @@ export type Obstacle = {
   kind: 'wall' | 'laser' | 'drone' | 'squeeze'; gap?: { center: number; size: number };
   passed: boolean; broken: boolean; closest: number;
   pattern?: typeof PATTERNS[number]; branch?: { center: number; size: number };
-  required?: Side; crossed?: boolean; perfect?: boolean; risky?: boolean;
+  crossed?: boolean; perfect?: boolean; risky?: boolean;
 };
 export type Orb = { id: number; x: number; y: number; collected: boolean; optional?: boolean; value?: number };
 export type Pickup = Orb & { kind: 'shield' };
@@ -40,7 +40,7 @@ export type GameState = {
   obstacles: Obstacle[]; orbs: Orb[]; pickups: Pickup[]; effects: Effect[];
   trail: { x: number; y: number }[]; effectId: number; nextObstacleX: number; nextId: number;
   lastGateX: number; lastGapY: number;
-  perfects: number; riskyPasses: number; polarityPasses: number; crashReason: string;
+  perfects: number; riskyPasses: number; crashReason: string;
 };
 
 function random(state: GameState) {
@@ -68,16 +68,15 @@ function populate(state: GameState) {
       [305, 260, 210, 270], [283, 250, 310, 283], [290, 318, 283, 283]];
     const patternIndex = PATTERNS.indexOf(pattern);
     const squeeze = pattern === 'SQUEEZE';
-    const kind = squeeze ? 'squeeze' : pattern === 'POLARITY' ? 'laser' : 'wall';
-    const width = squeeze ? 30 : kind === 'laser' ? 28 : 46 + Math.floor(random(state) * 13);
+    const kind = squeeze ? 'squeeze' : 'wall';
+    const width = squeeze ? 30 : pattern === 'DRIFT' ? 28 : 46 + Math.floor(random(state) * 13);
     const branch = (pattern === 'DIVE' || pattern === 'RECOVERY') && beat === 1 ? { center: 154, size: 108 - 8 * difficulty.progress } : undefined;
-    const size = id === 0 ? 216 : pattern === 'CLIMB' && beat === 2 ? 150 - 12 * difficulty.progress : branch ? 180 : pattern === 'RECOVERY' ? 220 : pattern === 'POLARITY' ? 220 - 10 * difficulty.progress
+    const size = id === 0 ? 216 : pattern === 'CLIMB' && beat === 2 ? 150 - 12 * difficulty.progress : branch ? 180 : pattern === 'RECOVERY' ? 220 : pattern === 'DRIFT' ? 220 - 10 * difficulty.progress
       : difficulty.opening - (squeeze || (pattern === 'CLIMB' && beat === 2) ? 20 : 0);
     const desired = heights[patternIndex][beat] + (id === 0 || branch ? 0 : (random(state) - 0.5) * 10);
     const center = id === 0 ? START_Y : Math.max(TOP_RAIL + size / 2 + 22, Math.min(BOTTOM_RAIL - size / 2 - 22, desired));
     const gap = { center, size };
-    const required: Side | undefined = pattern === 'POLARITY' ? (beat % 2 ? 1 : -1) : undefined;
-    const obstacle: Obstacle = { id, x: state.nextObstacleX, width, height: 0, side: 0, kind, gap, branch, required, pattern, passed: false, broken: false, closest: Infinity };
+    const obstacle: Obstacle = { id, x: state.nextObstacleX, width, height: 0, side: 0, kind, gap, branch, pattern, passed: false, broken: false, closest: Infinity };
     state.obstacles.push(obstacle);
     const gateX = obstacle.x + width / 2;
     const bend = (random(state) - 0.5) * 24;
@@ -99,7 +98,7 @@ export function createRun(seed = 1): GameState {
     flips: 0, coins: 0, chain: 0, combo: 1, maxCombo: 1, bonus: 0, dodged: 0, nearMisses: 0,
     shield: 0, shieldHits: 0, rescued: false, crash: null, obstacles: [], orbs: [], pickups: [], effects: [], trail: [],
     effectId: 0, nextObstacleX: 580, nextId: 0, lastGateX: 0, lastGapY: START_Y,
-    perfects: 0, riskyPasses: 0, polarityPasses: 0, crashReason: '' };
+    perfects: 0, riskyPasses: 0, crashReason: '' };
   populate(state);
   return state;
 }
@@ -187,15 +186,14 @@ export function stepRun(previous: GameState, dt: number): GameState {
     const rects = obstacleRects(obstacle);
     const clearance = Math.min(...rects.map(rect => circleClearance(state.distance, state.y, ROBOT_RADIUS - 2, obstacle.x, rect.top, obstacle.width, rect.height)));
     const crossing = !obstacle.crossed && state.distance >= obstacle.x + obstacle.width / 2;
-    const wrongPull = crossing && obstacle.required !== undefined && state.gravity !== obstacle.required;
     if (state.distance > obstacle.x - ROBOT_RADIUS && state.distance < obstacle.x + obstacle.width + ROBOT_RADIUS) obstacle.closest = Math.min(obstacle.closest, clearance);
-    if (clearance < 0 || wrongPull) {
+    if (clearance < 0) {
       if (state.shield > 0) {
         state.shield = 0; state.shieldHits++; state.bonus += 50; obstacle.broken = true;
         emit(state, 'break', obstacle.x + obstacle.width / 2, state.y, 50);
       } else {
         state.phase = 'over'; state.crash = { x: state.distance, y: state.y };
-        state.crashReason = wrongPull ? `Gate needed ${obstacle.required === -1 ? 'UP' : 'DOWN'} pull` : 'Clipped a barrier — reverse your pull earlier';
+        state.crashReason = 'Clipped a barrier — reverse your pull earlier';
         emit(state, 'crash', state.distance, state.y); break;
       }
     } else {
@@ -208,7 +206,6 @@ export function stepRun(previous: GameState, dt: number): GameState {
       }
       if (state.distance > obstacle.x + obstacle.width + ROBOT_RADIUS) {
         obstacle.passed = true; state.dodged++; state.bonus += 5;
-        if (obstacle.required !== undefined) state.polarityPasses++;
         if (obstacle.risky) { state.riskyPasses++; const value = 150 * state.combo; state.bonus += value; emit(state, 'risk', state.distance, state.y, value); }
         if (obstacle.perfect) { state.perfects++; const value = 60 * state.combo; state.bonus += value; emit(state, 'perfect', state.distance, state.y, value); }
         else if (obstacle.closest > 0 && obstacle.closest < 24) { state.nearMisses++; const value = 25 * state.combo; state.bonus += value; emit(state, 'near', state.distance, state.y, value); }
