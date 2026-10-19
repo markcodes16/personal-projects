@@ -12,13 +12,15 @@ The self-contained game file is published in this public repository. An account-
 
 https://raw.githack.com/markcodes16/personal-projects/6daf438bb64fbd466209363a7518ebd00202bb87/magnet-dash/demo/index.html
 
-The public GitHub source has been verified byte-for-byte against the tested standalone build. The external preview host is blocked by the current cloud network policy, so its HTTP response and live rendering have **not** been verified. Treat this as a prototype preview candidate, not production hosting. The URL pins the published version. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then use its commit SHA in the preview URL.
+The live HTTPS preview returns HTTP 200 with an HTML content type and matches the tested standalone build byte-for-byte. The user confirmed that it plays successfully. Local desktop and mobile browser tests passed. Additional automated live-browser checks were blocked by the cloud Chromium profile's missing trust for the network proxy certificate; certificate verification was kept enabled. Node HTTPS checks use the supplied proxy and certificate configuration with `NODE_USE_ENV_PROXY=1`.
+
+This is a public prototype preview, not production hosting. The URL pins the published version. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then use its commit SHA in the preview URL.
 
 This environment-onboarding chat has no user-facing web-preview service. Workspace file links and a running cloud server do not produce a public website. Publishing the development environment saves its setup; it does not deploy the game.
 
 The prepared cloud workspace contains `release/magnet-dash.html`, a single self-contained game file. Download it and open it in a modern browser that permits local HTML files. It needs no package installation or external assets. The automated browser checks verify that the same HTML renders and plays offline after loading; direct `file://` opening is blocked by the cloud machine's managed Chromium policy and could not be verified here.
 
-For a phone-friendly web link, deploy `dist/` to a static HTTPS host. No site has been published as part of this prototype. An app-store release, native wrapper, signing, real analytics, and mobile ad-network integration are separate launch work.
+For permanent hosting under your control, deploy `dist/` to a static HTTPS host. The browser preview above is available without GitHub Pages activation. An app-store release, native wrapper, signing, real analytics, and mobile ad-network integration are separate launch work.
 
 For hosting under a subpath such as GitHub Pages, use the self-contained site from `npm run package:preview`. It produces `release/site/index.html` and `release/magnet-dash-preview.zip`, with no absolute asset-path dependency. The ZIP contains only the game HTML and `.nojekyll`; it contains no source tree, credentials or event exports.
 
