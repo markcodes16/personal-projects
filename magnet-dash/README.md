@@ -6,6 +6,14 @@ Working title and concept: commercial naming and competitor research are still n
 
 ## Try it without installing tools
 
+### Browser preview without Pages activation
+
+The self-contained game file is published in this public repository. An account-free rendering URL is available through raw.githack.com:
+
+https://raw.githack.com/markcodes16/personal-projects/6daf438bb64fbd466209363a7518ebd00202bb87/magnet-dash/demo/index.html
+
+The public GitHub source has been verified byte-for-byte against the tested standalone build. The external preview host is blocked by the current cloud network policy, so its HTTP response and live rendering have **not** been verified. Treat this as a prototype preview candidate, not production hosting. The URL pins the published version. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then use its commit SHA in the preview URL.
+
 This environment-onboarding chat has no user-facing web-preview service. Workspace file links and a running cloud server do not produce a public website. Publishing the development environment saves its setup; it does not deploy the game.
 
 The prepared cloud workspace contains `release/magnet-dash.html`, a single self-contained game file. Download it and open it in a modern browser that permits local HTML files. It needs no package installation or external assets. The automated browser checks verify that the same HTML renders and plays offline after loading; direct `file://` opening is blocked by the cloud machine's managed Chromium policy and could not be verified here.
@@ -33,6 +41,7 @@ npm test                 # Engine, ad policy, and saved-run accounting tests
 npm run build            # TypeScript + production web build
 npm run build:standalone # Web build + release/magnet-dash.html
 npm run package:preview  # Build + static site folder + verified upload ZIP (Python 3 required)
+npm run refresh:demo     # Refresh the public demo/index.html from the standalone build
 npm run test:browser     # Build + desktop, mobile, controls, storage, and offline-bundle checks
 ```
 
