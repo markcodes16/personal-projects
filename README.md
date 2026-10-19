@@ -6,6 +6,7 @@ Projects in Python, TypeScript, and GDScript, focused on game tooling, progress 
 
 | Project | Overview | Technologies |
 | --- | --- | --- |
+| [Magnet Dash](magnet-dash/) | One-tap magnetic runner prototype with daily circuits, local best runs, and an ad experiment sandbox | TypeScript, React, Canvas, Vite |
 | [Deadlock Companion](deadlock-companion/) | Windows desktop tool for reviewing match data, recording sessions with OBS, taking notes, and tracking practice | Python, Tkinter, SQLite, OBS WebSocket |
 | [Deadlock Training Journal](deadlock-training-journal/) | Web app with 24 lessons, hero practice tracks, session logging, and progress stored per user | TypeScript, React, Tailwind CSS, Drizzle ORM, Cloudflare D1 |
 | [Godot Roguelite Starter](godot-roguelite-starter/) | Top-down 3D prototype with player movement, aiming, projectiles, chasing enemies, and escalating difficulty | Godot 4, GDScript |
