@@ -169,9 +169,10 @@ try {
   watch(scene);
   const engineModule = stripTypeScriptTypes(await readFile(`${root}/src/game.ts`, 'utf8'));
   const rendererModule = stripTypeScriptTypes(await readFile(`${root}/src/render.ts`, 'utf8')).replace("from './game'", "from './game.js'");
+  const pilotModule = stripTypeScriptTypes(await readFile(`${root}/tests/pilot.ts`, 'utf8'));
   await scene.route('**/__scene/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith('.js')) await route.fulfill({ contentType: 'text/javascript', body: path.endsWith('/game.js') ? engineModule : rendererModule });
+    if (path.endsWith('.js')) await route.fulfill({ contentType: 'text/javascript', body: path.endsWith('/game.js') ? engineModule : path.endsWith('/pilot.js') ? pilotModule : rendererModule });
     else await route.fulfill({ contentType: 'text/html', body: '<style>body{margin:0;background:#111}canvas{display:block;width:100vw;height:100vh}</style><canvas></canvas>' });
   });
   await scene.goto(`${origin}/__scene/index.html`);
@@ -180,16 +181,15 @@ try {
     const result = await scene.evaluate(async () => {
       const game = await import('/__scene/game.js');
       const { drawScene } = await import('/__scene/render.js');
+      const { shouldFlip } = await import('/__scene/pilot.js');
       let state = game.startRun(game.createRun(72));
-      let inGate = false;
+      let inGate = false, lastFlipAt = -1;
       for (let tick = 0; tick < 120 * 12 && state.phase === 'playing'; tick++) {
         const next = state.obstacles.find(o => !o.passed && !o.broken);
-        const dy = next?.gap ? Math.abs(state.y - next.gap.center) : 0;
-        const lead = next?.gap ? (Math.sqrt(1100 ** 2 + 10000 * dy) - 1100) / 5000 : 0.29;
-        if (next && state.gravity === next.side && next.x + (next.gap ? next.width / 2 : 0) - state.distance <= state.speed * lead) state = game.flip(state);
+        if (tick % 12 === 0 && state.elapsed - lastFlipAt >= 0.18 && shouldFlip(state)) { state = game.flip(state); lastFlipAt = state.elapsed; }
         state.shield = 0;
         state = game.stepRun(state, 1 / 120);
-        if (next?.gap && Math.abs(next.x + next.width / 2 - state.distance) < 5) { inGate = true; break; }
+        if (next?.kind === 'squeeze' && Math.abs(next.x + next.width / 2 - state.distance) < 5) { inGate = true; break; }
       }
       const canvas = document.querySelector('canvas');
       canvas.width = innerWidth * devicePixelRatio; canvas.height = innerHeight * devicePixelRatio;
@@ -203,7 +203,7 @@ try {
     assert.ok(result.y > 200 && result.y < 360);
     await scene.screenshot({ path: `${root}/test-results/squeeze-${width}.png` });
   }
-  console.log('PASS generated midair squeeze and airborne collection render on desktop and phone');
+  console.log('PASS momentum steering through a generated squeeze and airborne collection on desktop and phone');
   assert.deepEqual(errors, [], `Browser exceptions: ${errors.join('; ')}`);
   console.log('PASS all browser checks; no uncaught exceptions');
 } finally {

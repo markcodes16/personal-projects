@@ -5,10 +5,13 @@ export const BOTTOM_RAIL = 480;
 export const ROBOT_RADIUS = 17;
 export const METERS_PER_UNIT = 0.08;
 export const FIXED_STEP = 1 / 120;
-export const START_SPEED = 440;
-export const MAX_SPEED = 780;
-const FLIP_SPEED = 1100;
-const PULL = 5000;
+export const START_SPEED = 400;
+export const MAX_SPEED = 640;
+export const GRAVITY_PULL = 1100;
+export const AIR_DRAG = 1.4;
+export const MAX_VERTICAL_SPEED = 320;
+export const RUN_ACCELERATION = 4;
+export const START_Y = (TOP_RAIL + BOTTOM_RAIL) / 2;
 
 export type Phase = 'ready' | 'playing' | 'paused' | 'over';
 export type Side = -1 | 1;
@@ -28,7 +31,7 @@ export type GameState = {
   shield: number; shieldHits: number; rescued: boolean; crash: { x: number; y: number } | null;
   obstacles: Obstacle[]; orbs: Orb[]; pickups: Pickup[]; effects: Effect[];
   trail: { x: number; y: number }[]; effectId: number; nextObstacleX: number; nextId: number;
-  lastSide: Side;
+  lastGateX: number; lastGapY: number;
 };
 
 function random(state: GameState) {
@@ -42,56 +45,46 @@ function emit(state: GameState, kind: EffectKind, x: number, y: number, value = 
 }
 export function difficultyAt(distance: number) {
   // Terrain uses its world position, so generating ahead cannot skip a tier.
-  const progress = Math.max(0, Math.min(1, distance / 45000));
+  const progress = Math.max(0, Math.min(1, distance / 36000));
   return { progress, sector: 1 + Math.floor(Math.max(0, distance) / 6500),
-    speed: Math.min(MAX_SPEED, Math.sqrt(START_SPEED ** 2 + 12 * Math.max(0, distance))),
-    spacing: 430 - 80 * progress, opening: 286 - 108 * progress };
-}
-function flightTime(distance: number) {
-  return (Math.sqrt(FLIP_SPEED ** 2 + 2 * PULL * distance) - FLIP_SPEED) / PULL;
-}
-function flightY(from: Side, seconds: number) {
-  const travel = FLIP_SPEED * seconds + PULL * seconds ** 2 / 2;
-  return Math.max(TOP_RAIL + ROBOT_RADIUS, Math.min(BOTTOM_RAIL - ROBOT_RADIUS,
-    (from === 1 ? BOTTOM_RAIL - ROBOT_RADIUS : TOP_RAIL + ROBOT_RADIUS) - from * travel));
+    speed: Math.min(MAX_SPEED, Math.sqrt(START_SPEED ** 2 + 2 * RUN_ACCELERATION * Math.max(0, distance))),
+    spacing: 550 - 70 * progress, opening: 230 - 64 * progress };
 }
 function populate(state: GameState) {
   while (state.nextObstacleX < state.distance + 2800) {
     const id = state.nextId++;
     const difficulty = difficultyAt(state.nextObstacleX);
-    // Four opening zigzags, then increasingly frequent two-sided squeeze gates.
-    // No consecutive squeeze gates: each transfer has room to finish on a rail.
-    const squeeze = id >= 6 && id % (difficulty.progress < 0.5 ? 4 : 3) === 2 && state.obstacles.at(-1)?.kind !== 'squeeze';
-    const hold = !squeeze && id % 11 !== 5 && id > 7 && id % 5 === 3 && random(state) > 0.4;
-    const side: Side = hold ? state.lastSide : state.lastSide === 1 ? -1 : 1;
-    state.lastSide = side;
-    const kind = squeeze ? 'squeeze' : id % 3 === 2 ? 'laser' : 'wall';
-    const width = squeeze ? 14 + 4 * difficulty.progress : kind === 'laser' ? 36 : 65 + Math.floor(random(state) * 30);
-    const height = kind === 'laser' ? 275 + 20 * difficulty.progress : 220 + 40 * difficulty.progress + Math.floor(random(state) * 25);
-    const gap = squeeze ? { center: (TOP_RAIL + BOTTOM_RAIL) / 2 + (random(state) - 0.5) * 60, size: difficulty.opening } : undefined;
-    const obstacle: Obstacle = { id, x: state.nextObstacleX, width, height, side, kind, gap, passed: false, broken: false, closest: Infinity };
+    // Every gate blocks both rails. Bounded height changes and longer approach
+    // times leave room to brake and steer with momentum instead of snapping.
+    const squeeze = id >= 3 && id % (difficulty.progress < 0.5 ? 4 : 3) === 2;
+    const kind = squeeze ? 'squeeze' : id % 4 === 1 ? 'laser' : 'wall';
+    const width = squeeze ? 30 + 8 * difficulty.progress : kind === 'laser' ? 28 : 52 + Math.floor(random(state) * 17);
+    const size = difficulty.opening - (squeeze ? 20 : 0);
+    const desired = START_Y + (random(state) - 0.5) * (130 + 70 * difficulty.progress);
+    const shift = 65 + 20 * difficulty.progress;
+    const center = id === 0 ? START_Y : Math.max(TOP_RAIL + size / 2 + 38, Math.min(BOTTOM_RAIL - size / 2 - 38,
+      Math.max(state.lastGapY - shift, Math.min(state.lastGapY + shift, desired))));
+    const gap = { center, size };
+    const obstacle: Obstacle = { id, x: state.nextObstacleX, width, height: 0, side: 0, kind, gap, passed: false, broken: false, closest: Infinity };
     state.obstacles.push(obstacle);
-    const speed = difficulty.speed;
-    const startY = side === 1 ? BOTTOM_RAIL - ROBOT_RADIUS : TOP_RAIL + ROBOT_RADIUS;
-    const crossing = gap ? flightTime(Math.abs(startY - gap.center)) : 0;
-    const flipX = gap ? obstacle.x + width / 2 - speed * crossing : obstacle.x - speed * 0.29;
-    // Trails sample a real rail-to-rail flight instead of scattering unreachable
-    // rewards. The middle beads lead directly through the squeeze opening.
-    const times = gap ? [crossing - 0.075, crossing - 0.025, crossing + 0.025, crossing + 0.085] : [0.055, 0.115, 0.175, 0.25];
-    for (let index = 0; index < 4; index++) state.orbs.push({ id: id * 4 + index,
-      x: hold ? obstacle.x - 65 + index * 45 : flipX + times[index] * speed,
-      y: hold ? flightY(side, 1) : flightY(side, times[index]), collected: false });
-    // Shields also reward a timed airborne collection; energy never grants one.
-    if (id % 11 === 5) state.pickups.push({ id, x: flipX + speed * 0.145, y: flightY(side, 0.145), kind: 'shield', collected: false });
-    state.nextObstacleX += difficulty.spacing + Math.floor(random(state) * 80) + (squeeze ? 25 : 0);
+    const gateX = obstacle.x + width / 2;
+    const bend = (random(state) - 0.5) * 24;
+    const point = (fraction: number) => ({ x: state.lastGateX + (gateX - state.lastGateX) * fraction,
+      y: state.lastGapY + (center - state.lastGapY) * fraction ** 2 * (3 - 2 * fraction) + Math.sin(fraction * Math.PI) * bend });
+    // Smooth airborne trails join the openings, with space to reverse the pull
+    // before a turn. Rewards never require touching either rail.
+    for (let index = 0; index < 4; index++) state.orbs.push({ id: id * 4 + index, ...point(0.28 + index * 0.22), collected: false });
+    if (id % 10 === 5) state.pickups.push({ id, ...point(0.6), kind: 'shield', collected: false });
+    state.lastGateX = gateX; state.lastGapY = center;
+    state.nextObstacleX += difficulty.spacing + Math.floor(random(state) * 70);
   }
 }
 export function createRun(seed = 1): GameState {
   const state: GameState = { phase: 'ready', seed: seed >>> 0 || 1, random: seed >>> 0 || 1,
-    distance: 0, elapsed: 0, speed: START_SPEED, y: BOTTOM_RAIL - ROBOT_RADIUS, vy: 0, angle: 0, gravity: 1,
+    distance: 0, elapsed: 0, speed: START_SPEED, y: START_Y, vy: 0, angle: 0, gravity: 1,
     flips: 0, coins: 0, chain: 0, combo: 1, maxCombo: 1, bonus: 0, dodged: 0, nearMisses: 0,
     shield: 0, shieldHits: 0, rescued: false, crash: null, obstacles: [], orbs: [], pickups: [], effects: [], trail: [],
-    effectId: 0, nextObstacleX: 560, nextId: 0, lastSide: -1 };
+    effectId: 0, nextObstacleX: 580, nextId: 0, lastGateX: 0, lastGapY: START_Y };
   populate(state);
   return state;
 }
@@ -99,7 +92,9 @@ export function startRun(state: GameState): GameState { return state.phase === '
 export function flip(state: GameState): GameState {
   if (state.phase !== 'playing') return state;
   const gravity: Side = state.gravity === 1 ? -1 : 1;
-  const next = { ...state, gravity, vy: gravity * FLIP_SPEED, flips: state.flips + 1, effects: [...state.effects] };
+  // Switching changes acceleration, not velocity. Existing momentum has to
+  // slow down before the robot starts drifting toward the opposite rail.
+  const next = { ...state, gravity, flips: state.flips + 1, effects: [...state.effects] };
   emit(next, 'flip', state.distance, state.y);
   return next;
 }
@@ -112,7 +107,7 @@ export function obstacleTop(obstacle: Obstacle) {
   return obstacle.side === 1 ? BOTTOM_RAIL - obstacle.height : obstacle.side === -1 ? TOP_RAIL : (TOP_RAIL + BOTTOM_RAIL - obstacle.height) / 2;
 }
 export function obstacleRects(obstacle: Obstacle) {
-  if (obstacle.kind === 'squeeze' && obstacle.gap) {
+  if (obstacle.gap) {
     const top = obstacle.gap.center - obstacle.gap.size / 2, bottom = obstacle.gap.center + obstacle.gap.size / 2;
     return [{ top: TOP_RAIL, height: top - TOP_RAIL, side: -1 }, { top: bottom, height: BOTTOM_RAIL - bottom, side: 1 }];
   }
@@ -135,15 +130,16 @@ export function stepRun(previous: GameState, dt: number): GameState {
   const state: GameState = { ...previous, obstacles: previous.obstacles.map(o => ({ ...o })), orbs: previous.orbs.map(o => ({ ...o })),
     pickups: previous.pickups.map(p => ({ ...p })), effects: previous.effects.map(e => ({ ...e, age: e.age + dt })).filter(e => e.age < 0.9) };
   state.elapsed += dt;
-  state.speed = Math.min(MAX_SPEED, START_SPEED + state.elapsed * 6);
+  state.speed = Math.min(MAX_SPEED, START_SPEED + state.elapsed * RUN_ACCELERATION);
   state.distance += state.speed * dt;
-  state.vy = Math.max(-2200, Math.min(2200, state.vy + state.gravity * PULL * dt));
+  state.vy = Math.max(-MAX_VERTICAL_SPEED, Math.min(MAX_VERTICAL_SPEED,
+    state.vy + (state.gravity * GRAVITY_PULL - state.vy * AIR_DRAG) * dt));
   const incomingVy = state.vy;
   state.y += state.vy * dt;
   if (state.y <= TOP_RAIL + ROBOT_RADIUS) { state.y = TOP_RAIL + ROBOT_RADIUS; state.vy = 0; }
   if (state.y >= BOTTOM_RAIL - ROBOT_RADIUS) { state.y = BOTTOM_RAIL - ROBOT_RADIUS; state.vy = 0; }
-  if (state.vy === 0 && Math.abs(incomingVy) > 500) emit(state, 'land', state.distance, state.y);
-  state.angle += ((state.gravity === 1 ? 0 : Math.PI) - state.angle) * Math.min(1, dt * 24);
+  if (state.vy === 0 && Math.abs(incomingVy) > 180) emit(state, 'land', state.distance, state.y);
+  state.angle += (state.vy / MAX_VERTICAL_SPEED * 0.38 - state.angle) * Math.min(1, dt * 10);
   state.trail = [...previous.trail, { x: state.distance, y: state.y }].slice(-15);
   for (const orb of state.orbs) {
     if (!orb.collected && Math.hypot(orb.x - state.distance, orb.y - state.y) < ROBOT_RADIUS + 13) {
@@ -189,8 +185,8 @@ export function stepRun(previous: GameState, dt: number): GameState {
 export function rescue(state: GameState): GameState {
   if (state.phase !== 'over' || state.rescued) return state;
   return { ...state, phase: 'playing', rescued: true, shield: 0, crash: null, effects: [], trail: [],
-    obstacles: state.obstacles.filter(o => o.x > state.distance + 600),
-    y: state.gravity === 1 ? BOTTOM_RAIL - ROBOT_RADIUS : TOP_RAIL + ROBOT_RADIUS, vy: 0 };
+    obstacles: state.obstacles.filter(o => o.x > state.distance + Math.max(900, state.speed * 1.5)),
+    y: START_Y, vy: 0 };
 }
 export function distanceMeters(state: GameState) { return Math.floor(state.distance * METERS_PER_UNIT); }
 export function score(state: GameState) { return distanceMeters(state) + state.bonus; }

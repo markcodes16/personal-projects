@@ -1,4 +1,4 @@
-import { BOTTOM_RAIL, TOP_RAIL, WORLD_HEIGHT, difficultyAt, obstacleRects } from './game';
+import { BOTTOM_RAIL, START_Y, TOP_RAIL, WORLD_HEIGHT, difficultyAt, obstacleRects } from './game';
 import type { GameState } from './game';
 
 function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number, fill: string) {
@@ -9,8 +9,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.save();
   const scale = height / WORLD_HEIGHT;
   ctx.scale(scale, scale);
-  // Keep at least 680 world units visible on narrow phones for a fair warning window.
-  const horizontalZoom = Math.min(1, width / scale / 680);
+  // Slower steering needs enough warning to brake before an opening on phones.
+  const horizontalZoom = Math.min(1, width / scale / 760);
   ctx.scale(horizontalZoom, 1);
   const w = width / scale / horizontalZoom;
   if (!reducedMotion) {
@@ -75,9 +75,9 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   let orbs = state.orbs;
   let robotY = state.y;
   if (state.phase === 'ready') {
-    obstacles = [{ id: 0, x: w * 0.78 - playerX, width: 18, height: 0, side: 1, kind: 'squeeze', gap: { center: 280, size: 210 }, passed: false, broken: false, closest: Infinity }, { id: 1, x: w * 0.96 - playerX, width: 66, height: 230, side: -1, kind: 'wall', passed: false, broken: false, closest: Infinity }];
-    orbs = [0, 1, 2, 3].map((i) => ({ id: i, x: w * 0.71 + i * 30 - playerX, y: 418 - i * 82, collected: false }));
-    robotY = BOTTOM_RAIL - 17;
+    obstacles = [{ id: 0, x: w * 0.78 - playerX, width: 36, height: 0, side: 0, kind: 'squeeze', gap: { center: 280, size: 200 }, passed: false, broken: false, closest: Infinity }, { id: 1, x: w * 1.08 - playerX, width: 54, height: 0, side: 0, kind: 'wall', gap: { center: 225, size: 210 }, passed: false, broken: false, closest: Infinity }];
+    orbs = [0, 1, 2, 3].map((i) => ({ id: i, x: w * 0.61 + i * 55 - playerX, y: 330 - Math.sin(i * 0.5) * 60, collected: false }));
+    robotY = START_Y + (reducedMotion ? 0 : Math.sin(clock * 2) * 3);
   }
   const offset = state.phase === 'ready' ? 0 : state.distance;
   for (const obstacle of obstacles) {
@@ -166,6 +166,14 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       rect(ctx, playerX + point.x - state.distance - 13, point.y - 11, 26, 22, 6, accent);
     }
     ctx.restore();
+    // Pull direction changes immediately; the body leans with actual velocity.
+    // This makes the short drift after a switch visible instead of hiding it.
+    if (state.phase === 'playing' || state.phase === 'paused') {
+      const arrowX = playerX + 30, arrowY = robotY + state.gravity * 9;
+      ctx.save(); ctx.strokeStyle = accent; ctx.fillStyle = accent; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(arrowX, arrowY - state.gravity * 9); ctx.lineTo(arrowX, arrowY + state.gravity * 8); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(arrowX, arrowY + state.gravity * 13); ctx.lineTo(arrowX - 4, arrowY + state.gravity * 6); ctx.lineTo(arrowX + 4, arrowY + state.gravity * 6); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
     if (state.shield > 0) {
       ctx.save(); ctx.shadowBlur = 20; ctx.shadowColor = '#8befff';
       ctx.beginPath(); ctx.arc(playerX, robotY, 33 + (reducedMotion ? 0 : Math.sin(clock * 9) * 2), 0, Math.PI * 2);
