@@ -4,6 +4,8 @@ An original prototype for a one-tap arcade runner. A small magnetic robot floats
 
 Working title and concept: commercial naming and competitor research are still needed. No proprietary code, artwork or ad algorithms from other games are used.
 
+Continuing in a new conversation? Read the [project handoff](docs/PROJECT_HANDOFF.md) for the user's goals, current build, verified checks and next priorities.
+
 ## Try it without installing tools
 
 ### Browser preview without Pages activation
