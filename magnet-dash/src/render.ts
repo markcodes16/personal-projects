@@ -121,11 +121,15 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     if (obstacle.required !== undefined && obstacle.gap) {
       const correct = state.gravity === obstacle.required;
       const color = obstacle.required === -1 ? '#c4b2ff' : '#d4ff99';
-      ctx.save(); ctx.globalAlpha = correct ? 0.16 : 0.5; ctx.fillStyle = color;
-      ctx.fillRect(x + obstacle.width / 2 - 2, obstacle.gap.center - obstacle.gap.size / 2, 4, obstacle.gap.size); ctx.restore();
+      ctx.save(); ctx.globalAlpha = correct ? 0.2 : 0.65; ctx.fillStyle = color;
+      ctx.fillRect(x + obstacle.width / 2 - 3, obstacle.gap.center - obstacle.gap.size / 2, 6, obstacle.gap.size); ctx.restore();
       ctx.save(); ctx.translate(x + obstacle.width / 2, obstacle.gap.center); ctx.scale(1 / horizontalZoom, 1);
-      rect(ctx, -30, -14, 60, 28, 7, '#15202eee'); ctx.fillStyle = color; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
-      ctx.fillText(obstacle.required === -1 ? '↑ UP' : '↓ DOWN', 0, 5); ctx.restore();
+      rect(ctx, -49, -28, 98, 56, 8, '#101925f2');
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.strokeRect(-48, -27, 96, 54);
+      ctx.fillStyle = color; ctx.textAlign = 'center';
+      ctx.font = 'bold 10px monospace'; ctx.fillText('REQUIRED PULL', 0, -10);
+      ctx.font = 'bold 22px monospace'; ctx.fillText(obstacle.required === -1 ? '↑ UP' : '↓ DOWN', 0, 15);
+      ctx.font = 'bold 10px monospace'; ctx.fillText(correct ? '✓ READY' : '↕ FLIP', 0, 39); ctx.restore();
     }
   }
   for (const orb of orbs) {
