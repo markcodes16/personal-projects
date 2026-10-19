@@ -85,10 +85,12 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     const x = playerX + obstacle.x - offset;
     if (obstacle.broken || x < -120 || x > w + 100) continue;
     const squeeze = obstacle.kind === 'squeeze';
+    const poleColor = obstacle.required === -1 ? '#bcaaff' : '#ccef9e';
     for (const segment of obstacleRects(obstacle)) {
       const { top: y, height: segmentHeight, side } = segment;
       const obGradient = ctx.createLinearGradient(x, y, x + obstacle.width, y + segmentHeight);
-      obGradient.addColorStop(0, squeeze ? '#ffc17d' : obstacle.kind === 'laser' ? '#ff728d' : '#e88c85'); obGradient.addColorStop(1, squeeze ? '#a05048' : '#913e66');
+      obGradient.addColorStop(0, obstacle.required !== undefined ? poleColor : squeeze ? '#ffc17d' : obstacle.kind === 'laser' ? '#ff728d' : '#e88c85');
+      obGradient.addColorStop(1, obstacle.required !== undefined ? obstacle.required === -1 ? '#51466d' : '#496242' : squeeze ? '#a05048' : '#913e66');
       ctx.save(); ctx.shadowBlur = 18; ctx.shadowColor = '#ee7c8c30';
       ctx.beginPath(); ctx.roundRect(x, y, obstacle.width, segmentHeight, squeeze ? 3 : 6); ctx.fillStyle = obGradient; ctx.fill(); ctx.restore();
       ctx.strokeStyle = '#ffb1a980'; ctx.lineWidth = 1; ctx.stroke();
@@ -104,14 +106,15 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
         ctx.save(); ctx.shadowBlur = 22; ctx.shadowColor = '#ff83b4';
         rect(ctx, x + obstacle.width / 2 - 3, y + 9, 6, segmentHeight - 18, 3, '#ffe0e9'); ctx.restore();
       }
-      if (!squeeze) { ctx.fillStyle = '#fff0dbb0'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'center'; ctx.fillText('×', x + obstacle.width / 2, y + segmentHeight / 2 + 7); ctx.textAlign = 'start'; }
+      if (!squeeze && obstacle.required === undefined) { ctx.fillStyle = '#fff0dbb0'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'center'; ctx.fillText('×', x + obstacle.width / 2, y + segmentHeight / 2 + 7); ctx.textAlign = 'start'; }
     }
     for (const opening of [obstacle.gap, obstacle.branch]) if (opening) {
       const { center, size } = opening;
       // Bright lips mark the passage; the opening itself stays visually clear.
       ctx.save(); ctx.shadowBlur = 14; ctx.shadowColor = '#ffd39a';
-      rect(ctx, x - 4, center - size / 2 - 3, obstacle.width + 8, 4, 2, '#ffe1a9');
-      rect(ctx, x - 4, center + size / 2 - 1, obstacle.width + 8, 4, 2, '#ffe1a9');
+      const rim = obstacle.required === undefined ? '#ffe1a9' : poleColor;
+      rect(ctx, x - 4, center - size / 2 - 3, obstacle.width + 8, 4, 2, rim);
+      rect(ctx, x - 4, center + size / 2 - 1, obstacle.width + 8, 4, 2, rim);
       ctx.restore();
     }
     if (obstacle.branch) {
@@ -120,16 +123,20 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     }
     if (obstacle.required !== undefined && obstacle.gap) {
       const correct = state.gravity === obstacle.required;
-      const color = obstacle.required === -1 ? '#c4b2ff' : '#d4ff99';
-      ctx.save(); ctx.globalAlpha = correct ? 0.2 : 0.65; ctx.fillStyle = color;
-      ctx.fillRect(x + obstacle.width / 2 - 3, obstacle.gap.center - obstacle.gap.size / 2, 6, obstacle.gap.size); ctx.restore();
-      ctx.save(); ctx.translate(x + obstacle.width / 2, obstacle.gap.center); ctx.scale(1 / horizontalZoom, 1);
-      rect(ctx, -49, -28, 98, 56, 8, '#101925f2');
-      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.strokeRect(-48, -27, 96, 54);
-      ctx.fillStyle = color; ctx.textAlign = 'center';
-      ctx.font = 'bold 10px monospace'; ctx.fillText('REQUIRED PULL', 0, -10);
-      ctx.font = 'bold 22px monospace'; ctx.fillText(obstacle.required === -1 ? '↑ UP' : '↓ DOWN', 0, 15);
-      ctx.font = 'bold 10px monospace'; ctx.fillText(correct ? '✓ READY' : '↕ FLIP', 0, 39); ctx.restore();
+      const { center, size } = obstacle.gap;
+      // The markings belong to the gate hardware; keep the flight path open.
+      ctx.save(); ctx.globalAlpha = correct ? 0.3 : 0.12; ctx.strokeStyle = poleColor; ctx.lineWidth = 1;
+      ctx.setLineDash([2, 9]); ctx.beginPath(); ctx.moveTo(x + obstacle.width / 2, center - size / 2 + 8);
+      ctx.lineTo(x + obstacle.width / 2, center + size / 2 - 8); ctx.stroke(); ctx.restore();
+      for (const lipY of [center - size / 2 - 22, center + size / 2 + 22]) {
+        ctx.save(); ctx.translate(x + obstacle.width / 2, lipY); ctx.scale(1 / horizontalZoom, 1);
+        ctx.strokeStyle = poleColor; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (const offsetY of [-4, 4]) {
+          ctx.beginPath(); ctx.moveTo(-4, offsetY - obstacle.required * 2.5); ctx.lineTo(0, offsetY + obstacle.required * 2.5);
+          ctx.lineTo(4, offsetY - obstacle.required * 2.5); ctx.stroke();
+        }
+        ctx.restore();
+      }
     }
   }
   for (const orb of orbs) {

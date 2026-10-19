@@ -35,6 +35,7 @@ export default function GamePanel({ mode, visible, sound, best, onRun, onLive, o
   const sync = useRef<() => void>(() => {});
   const lastActionAt = useRef(0);
   const overlayButton = useRef<HTMLButtonElement>(null);
+  const polarityLearned = useRef(false);
   callbacks.current = { sound, onRun, onLive, mode, visible, onFocus, skin };
 
   useEffect(() => {
@@ -108,6 +109,7 @@ export default function GamePanel({ mode, visible, sound, best, onRun, onLive, o
       const old = run.current;
       const next = stepRun(old, dt);
       run.current = next;
+      if (next.polarityPasses > 0) polarityLearned.current = true;
       if (next.elapsed < old.elapsed) lastEffect = 0;
       const fresh = next.effects.filter(effect => effect.id > lastEffect);
       if (fresh.length) lastEffect = Math.max(...fresh.map(effect => effect.id));
@@ -151,6 +153,7 @@ export default function GamePanel({ mode, visible, sound, best, onRun, onLive, o
   const leave = () => { if (run.current.phase === 'playing') { run.current = togglePause(run.current); sync.current(); } onFocus(false); };
   const upcoming = run.current.obstacles.find(o => !o.passed && !o.broken);
   const gateCue = polarityCue(run.current);
+  const gateLead = upcoming ? (upcoming.x + upcoming.width / 2 - run.current.distance) / run.current.speed : 0;
   const sector = SECTORS[(stats.sector - 1) % SECTORS.length];
 
   return <section className={`game-card ${focused ? 'is-focused' : ''}`} aria-label="Magnet Dash game">
@@ -158,14 +161,14 @@ export default function GamePanel({ mode, visible, sound, best, onRun, onLive, o
     <div className={`game-viewport phase-${stats.phase}`}>
       <canvas ref={canvas} tabIndex={0} role="button" aria-label="Game tunnel. Press Space or tap to switch polarity. P pauses." onPointerDown={event => { event.preventDefault(); canvas.current?.focus({ preventScroll: true }); action.current(); }} />
       <div className="game-hud" aria-hidden="true"><div><span>SCORE</span><strong>{stats.score.toLocaleString()}</strong><small className="score-distance">{stats.distance}m · {upcoming?.pattern ?? 'CLIMB'}</small></div><div className="hud-charge"><span>FLOW</span><strong className="combo-value">×{stats.combo}</strong><div>{Array.from({ length: 5 }, (_, index) => <i className={index < stats.combo ? 'filled' : ''} key={index} />)}</div></div><div className="hud-energy"><Zap size={15} /><strong key={stats.coins}>{stats.coins.toString().padStart(2, '0')}</strong></div></div>
-      {stats.phase === 'ready' && <div className="game-overlay ready-overlay"><div className="start-panel"><span className="start-symbol"><ArrowUpDown size={27} /></span><span className="eyebrow">A NEW DIRECTION AWAITS</span><h2>Ready to<br /><em>switch it up?</em></h2><p>Tap to reverse gravity. Stay afloat.<br />Arrow gates check your <strong>pull direction</strong>, not which way you are moving.</p><button className="primary-button start-button" onClick={() => action.current()}><Play size={17} fill="currentColor" /> Let's dash <ArrowUpRight className="start-arrow" size={15} /></button><span className="start-hint">TAP ANYWHERE OR PRESS <kbd>SPACE</kbd></span></div></div>}
+      {stats.phase === 'ready' && <div className="game-overlay ready-overlay"><div className="start-panel"><span className="start-symbol"><ArrowUpDown size={27} /></span><span className="eyebrow">A NEW DIRECTION AWAITS</span><h2>Ready to<br /><em>switch it up?</em></h2><p>Tap to reverse gravity. Stay afloat.<br />Flip early — momentum carries you.</p><button className="primary-button start-button" onClick={() => action.current()}><Play size={17} fill="currentColor" /> Let's dash <ArrowUpRight className="start-arrow" size={15} /></button><span className="start-hint">TAP ANYWHERE OR PRESS <kbd>SPACE</kbd></span></div></div>}
       {stats.phase === 'paused' && <div className="game-overlay"><div className="end-panel" role="dialog" aria-modal="true" aria-label="Game paused"><span className="start-symbol"><Pause size={24} /></span><span className="eyebrow">TAKE A BREATHER</span><h2>Right where<br />you left off.</h2><p>Your run is paused. Ready when you are.</p><button className="primary-button" ref={overlayButton} onClick={() => { pause.current(); canvas.current?.focus({ preventScroll: true }); }}><Play size={17} fill="currentColor" /> Resume run</button></div></div>}
       {stats.phase === 'over' && <div className="game-overlay"><div className="end-panel" role="dialog" aria-modal="true" aria-label="Run complete"><span className="eyebrow">{stats.isRecord ? <><Trophy size={14} /> NEW BEST SCORE</> : 'ANOTHER RUN. MORE PROGRESS.'}</span><div className="end-distance">{stats.score.toLocaleString()}<span>PTS</span></div><p>{run.current.crashReason}</p><div className="end-stats"><span>{stats.distance}m</span><span><Zap size={14} /> {stats.coins} energy</span><span>{run.current.perfects} perfect</span><span>{run.current.riskyPasses} bonus routes</span></div><button className="primary-button" ref={overlayButton} onClick={() => action.current()}><RotateCcw size={17} /> Dash again</button>{!stats.rescued && <><button className="rescue-button" onClick={recover}><Shield size={15} /> Try a free rescue</button><span className="reward-note">Ad-reward preview · no ad plays · once per run</span></>}<p className="progress-note">{milestone}</p><button className="garage-link" onClick={onGarage}>Missions &amp; garage →</button></div></div>}
       {stats.shield > 0 && stats.phase === 'playing' && <div className="surge-banner"><Shield size={15} /> SHIELD READY <span>1 HIT</span></div>}
       {stats.phase === 'playing' && stats.distance < 160 && <div className="first-tip">{stats.distance < 65 ? 'Tap to reverse gravity. Keep yourself afloat.' : 'Flip before a turn. Momentum carries you.'}</div>}
-      {gateCue && <div className={`gate-tip ${gateCue.required === -1 ? 'up' : 'down'} ${gateCue.matched ? 'matched' : 'needs-flip'}`} role="status" aria-live="off"><strong>{gateCue.matched ? '✓ CORRECT PULL' : '↕ TAP TO SWITCH PULL'}</strong><span>GATE REQUIRES {gateCue.required === -1 ? '↑ UP' : '↓ DOWN'} · YOU ARE {stats.gravity === -1 ? '↑ UP' : '↓ DOWN'}</span>{gateCue.firstGate && <small>The arrow is the required magnetic pull, not your travel direction.</small>}</div>}
+      {gateCue?.firstGate && !polarityLearned.current && gateLead > 0.8 && <div className="polarity-lesson"><ArrowUpDown size={13} /><span>Match your pull to the gate arrows.</span></div>}
     </div>
-    <div className="game-bottom"><div className={`polarity-readout ${stats.gravity === -1 ? 'up' : ''}`}><span className="polarity-icon">{stats.gravity === 1 ? <ArrowDown size={15} /> : <ArrowUp size={15} />}</span><span>PULLING {stats.gravity === 1 ? 'DOWN' : 'UP'}</span></div><button className="tap-button" onClick={() => action.current()}><ArrowUpDown size={15} /><span>{stats.phase === 'ready' ? 'Start run' : stats.phase === 'over' ? 'Try again' : stats.phase === 'paused' ? 'Resume' : 'Flip polarity'}</span><kbd>SPACE</kbd></button></div>
+    <div className="game-bottom"><div className="pull-status"><div className={`polarity-readout ${stats.gravity === -1 ? 'up' : ''}`}><span className="polarity-icon">{stats.gravity === 1 ? <ArrowDown size={15} /> : <ArrowUp size={15} />}</span><span>PULLING {stats.gravity === 1 ? 'DOWN' : 'UP'}</span></div>{gateCue && <span className={`polarity-target ${gateCue.required === -1 ? 'up' : 'down'} ${gateCue.matched ? 'matched' : ''}`} aria-label={`Gate requires ${gateCue.required === -1 ? 'up' : 'down'} pull${gateCue.matched ? ', matched' : ''}`}><small>GATE</small>{gateCue.required === -1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{gateCue.matched && <i />}</span>}</div><button className="tap-button" onClick={() => action.current()}><ArrowUpDown size={15} /><span>{stats.phase === 'ready' ? 'Start run' : stats.phase === 'over' ? 'Try again' : stats.phase === 'paused' ? 'Resume' : 'Flip polarity'}</span><kbd>SPACE</kbd></button></div>
     <span className="sr-only" role="status" aria-live="polite">{stats.phase === 'over' ? `Run complete. ${stats.distance} meters, ${stats.coins} energy.` : stats.phase === 'paused' ? 'Game paused' : stats.phase === 'playing' ? 'Run started. Tap or press Space to flip.' : 'Ready to play.'}</span>
   </section>;
 }
