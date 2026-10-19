@@ -1,5 +1,7 @@
 # Magnet Dash V5: second design review
 
+Historical assessment of V5. **V5.1 update:** the user shelved direction-required polarity gates after rejecting their visual treatments. Ordinary drift passages replace them, their prompts are gone, and the third mission now tracks bonus routes. Recommendations below about introducing or teaching those gates are superseded. The current build passes 33 unit tests and desktop/mobile browser checks; all 30 main-route and 30 bonus-route two-minute simulations survive without shields, with a 15.3% bonus score lift. See the [current handoff](PROJECT_HANDOFF.md) and [V5.1 diagnostic](PLAYTEST_V5_1.json).
+
 The game now asks for route changes, precise movement and a choice about risk. It has a clearer magnetic identity and a visible reason for collected energy to matter between runs. The original center-hovering weakness is substantially reduced. Whether people enjoy these decisions and choose to return still needs human playtesting.
 
 ## Changes against the first report

@@ -12,11 +12,11 @@ Continuing in a new conversation? Read the [project handoff](docs/PROJECT_HANDOF
 
 The self-contained game file is published in this public repository. An account-free rendering URL is available through raw.githack.com:
 
-https://raw.githack.com/markcodes16/personal-projects/f35610416a75eea9df3d7aabae56e46b50010816/magnet-dash/demo/index.html
+https://raw.githack.com/markcodes16/personal-projects/a2ab8c208cb8298194e9856f3d6b187e5d95e55e/magnet-dash/demo/index.html
 
-The V5 public preview returned HTTP 200 with an HTML content type and matched the tested standalone HTML byte-for-byte (SHA-256 `ddf19863c2f8f6ae6491afcf4f07608b8d255cfdf7d5428b48195cb8a3f2cacb`). The user confirmed the prior version plays successfully. Local desktop and mobile browser tests exercise the current version. Additional automated live-browser checks were blocked by the cloud Chromium profile's missing trust for the network proxy certificate; certificate verification was kept enabled. Node HTTPS checks use the supplied proxy and certificate configuration with `NODE_USE_ENV_PROXY=1`.
+The V5.1 public preview returned HTTP 200 with an HTML content type and matched the tested standalone HTML byte-for-byte (SHA-256 `d7a72b183cfc920b8d38765a98486ce87e6e2212270d5121648e9cfb80efa5af`). The user confirmed an earlier preview plays successfully. Local desktop and mobile browser tests exercise the current version. Additional automated live-browser checks were blocked by the cloud Chromium profile's missing trust for the network proxy certificate; certificate verification was kept enabled. Node HTTPS checks use the supplied proxy and certificate configuration with `NODE_USE_ENV_PROXY=1`.
 
-This is a public prototype preview, not production hosting. The preview URL is pinned to the verified V5 commit; main-branch URLs may temporarily serve an older CDN cache even with a new query string. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then verify its commit-specific rendering URL against the local artifact before sharing it. Request that URL only after the push finishes; early requests can cache a 404.
+This is a public prototype preview, not production hosting. The preview URL is pinned to the verified V5.1 commit; main-branch URLs may temporarily serve an older CDN cache even with a new query string. `npm run refresh:demo` rebuilds `demo/index.html`; commit and push that file to publish a newer version, then verify its commit-specific rendering URL against the local artifact before sharing it. Request that URL only after the push finishes; early requests can cache a 404.
 
 This environment-onboarding chat has no user-facing web-preview service. Workspace file links and a running cloud server do not produce a public website. Publishing the development environment saves its setup; it does not deploy the game.
 
@@ -51,21 +51,23 @@ npm run test:browser     # Build + desktop, mobile, controls, storage, and offli
 
 Browser checks use Playwright with `/usr/bin/chromium` when available. Else set `CHROMIUM_PATH` or install Playwright's Chromium in the cloud. They start a temporary local server on port 4175, close it afterward, and save screenshots under ignored `test-results/`. The game itself has no Playwright dependency at runtime.
 
-## V5 design update
+## V5.1 design update
 
-V4's slower gravity and inertia remain. V5 adds six authored sequences (climb, dive, weave, squeeze, polarity, recovery), arrow-marked gates that check the selected pull, optional upper bonus passages, perfect-pass bonuses, and three changing sector palettes. Score is now the main record and milestone. Optional pickups never break a multiplier when missed.
+Slower gravity and inertia remain. Six authored sequences (climb, dive, weave, squeeze, drift, recovery), optional upper bonus passages, perfect-pass bonuses, and three changing sector palettes shape the course. Score is the main record and milestone. Optional pickups never break a multiplier when missed.
+
+At the user's request, V5.1 shelves the direction-required polarity gates after two visual treatments proved unsatisfactory. Their section now contains ordinary open passages; crossing an opening never requires a particular pull. Their prompts and mission are removed, with a bonus-route mission taking that career slot. Gravity switching remains the movement mechanic. The shelved implementations remain in Git history and the `ux/clear-polarity-gate-cues` branch for possible future work; do not reintroduce them without a new request.
 
 Starting a run opens a dedicated play view, with all phone controls visible in portrait and landscape. Character and pickup artwork preserve their proportions. Lifetime energy unlocks four robot finishes, and three repeating mission tracks save progress between runs. The garage is available from the result screen. Finishes affect appearance only; there are no purchases or live ads.
 
-Validation: 33 unit tests and desktop/mobile Chromium checks passed, including both passages, polarity checks, save migration and finish persistence. The second simulation review covers 30 main-route and 30 bonus-route two-minute runs without shield reliance. The middle-only strategy now lasts 4.45 seconds on average, compared with 42.34 in V4. These checks establish reachability and changed incentives, not human enjoyment or retention.
+Validation: 33 unit tests and desktop/mobile Chromium checks passed, including openings accepting either pull, both passages, save migration and finish persistence. The V5.1 diagnostic covers 30 main-route and 30 bonus-route two-minute runs without shield reliance, with all guided runs surviving. The middle-only strategy lasts 4.45 seconds on average. The bonus strategy averages 15.3% more score. These checks establish reachability and scoring incentives, not human enjoyment or retention.
 
-Read [the full second review](docs/REVIEW_V5.md), including remaining issues and [raw diagnostic results](docs/PLAYTEST_V5.json). Reproduce it with `node --experimental-strip-types scripts/review.ts`. Existing records are preserved across balance changes.
+Read [the historical V5 second review](docs/REVIEW_V5.md) for the broader assessment and [current diagnostic results](docs/PLAYTEST_V5_1.json) for V5.1. Reproduce the diagnostic with `node --experimental-strip-types scripts/review.ts`. Existing records are preserved across balance changes.
 
 ## Controls and rules
 
 - Tap/click the tunnel, press Space / Up / Down, or use the flip button to switch polarity.
 - Press P / Escape or use the pause button. Hiding the tab, opening instructions, or visiting the creator lab pauses an active run. Resume explicitly.
-- Pink paired barriers and amber squeeze gates end a run unless a shield is active. Arrow gates also require the marked UP or DOWN pull at the glowing crossing line. Stay in the air and reverse gravity before a turn: momentum continues briefly after each tap.
+- Pink paired barriers and amber squeeze gates end a run unless a shield is active. Fly through their clear openings. Stay in the air and reverse gravity before a turn: momentum continues briefly after each tap.
 - Follow airborne energy trails up or down. Gold upper passages are optional and award extra points; skipping them does not reset flow. Consecutive energy pickups build a score multiplier up to ×5; missing an orb resets it. Close passes earn skill bonuses. Cyan shield capsules are separate pickups and absorb exactly one collision. Energy never grants a shield.
 - One optional **demo** rescue returns the robot to midair, clears the immediate route and grants no shield. No ad plays. Rescuing updates the same saved run rather than counting it twice.
 - Endless uses fresh seeds. Daily Circuit uses the browser's local calendar date, so the layout repeats that day. There is no global leaderboard or verified competitive scoring.
