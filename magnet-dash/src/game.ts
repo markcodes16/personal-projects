@@ -98,21 +98,41 @@ function populate(state: GameState) {
     const id = state.nextId++;
     const difficulty = difficultyAt(state.nextObstacleX);
     const pattern = patternAt(state.seed, id), beat = id % 4;
-    const heights = [[283, 238, 180, 205], [250, 318, 300, 350], [283, 215, 283, 350],
-      [305, 260, 210, 270], [283, 250, 310, 283], [290, 318, 283, 283]];
+    // Authored flight shapes are shuffled by seed. Several gates deliberately
+    // put the *whole* safe opening above or below the central flight corridor.
+    // The gaps stay physical; neither selected gravity direction is required.
+    const heights = [[283, 238, 180, 205], [250, 318, 350, 382], [283, 180, 283, 382],
+      [305, 260, 180, 270], [283, 382, 283, 180], [290, 318, 283, 283]];
     const patternIndex = PATTERNS.indexOf(pattern);
     const squeeze = pattern === 'SQUEEZE';
     const kind = squeeze ? 'squeeze' : 'wall';
     const width = squeeze ? 30 : pattern === 'DRIFT' ? 28 : 46 + Math.floor(random(state) * 13);
     // The optional high passage must remain separated from the main opening.
     const branch = (pattern === 'DIVE' || pattern === 'RECOVERY') && beat === 1 ? { center: 154, size: 108 - 8 * difficulty.progress } : undefined;
-    const size = id === 0 ? 216 : pattern === 'CLIMB' && beat === 2 ? 150 - 12 * difficulty.progress : branch ? 180 : pattern === 'RECOVERY' ? 220 : pattern === 'DRIFT' ? 220 - 10 * difficulty.progress
-      : difficulty.opening - (squeeze || (pattern === 'CLIMB' && beat === 2) ? 20 : 0);
+    const altitudeGate =
+      (pattern === 'CLIMB' && beat === 2) ||
+      (pattern === 'DIVE' && (beat === 2 || beat === 3)) ||
+      (pattern === 'WEAVE' && (beat === 1 || beat === 3)) ||
+      (pattern === 'SQUEEZE' && beat === 2) ||
+      (pattern === 'DRIFT' && (beat === 1 || beat === 3));
+    // Dedicated altitude gates need intentional climbs/dives, not more taps
+    // at the same height. Later gates narrow gradually while remaining open.
+    const size = id === 0 ? 216 : branch ? 180 :
+      altitudeGate ? 148 - 12 * difficulty.progress :
+      pattern === 'RECOVERY' ? 220 : pattern === 'DRIFT' ? 220 - 10 * difficulty.progress :
+      difficulty.opening - (squeeze ? 20 : 0);
     const sequence = Math.floor(id / 4);
     const mirrored = false; // Postpone mirroring until simulated route coverage is stable.
     const template = heights[patternIndex][beat];
-    const variation = id === 0 || branch ? 0 : (random(state) - 0.5) * 10;
+    const variation = id === 0 || branch || altitudeGate ? 0 : (random(state) - 0.5) * 10;
     let desired = branch ? 318 : START_Y + (template - START_Y) * (mirrored ? -1 : 1) + variation;
+    if (altitudeGate && id >= 4) {
+      // Guarantee enough of the opening is off-centre that the player must
+      // leave the middle, yet leave clearance by both walls for the robot.
+      const upper = TOP_RAIL + size / 2 + 22;
+      const lower = BOTTOM_RAIL - size / 2 - 22;
+      desired = template < START_Y ? upper : lower;
+    }
     // A bonus gate follows an approach around mid-tunnel, not a hard reversal
     // from an extreme rail. This keeps the optional upper route a real choice.
     if ((pattern === 'DIVE' || pattern === 'RECOVERY') && beat === 0) desired = Math.max(250, desired);
