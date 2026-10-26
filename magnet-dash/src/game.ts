@@ -109,16 +109,16 @@ function populate(state: GameState) {
     const size = id === 0 ? 216 : pattern === 'CLIMB' && beat === 2 ? 150 - 12 * difficulty.progress : branch ? 180 : pattern === 'RECOVERY' ? 220 : pattern === 'DRIFT' ? 220 - 10 * difficulty.progress
       : difficulty.opening - (squeeze || (pattern === 'CLIMB' && beat === 2) ? 20 : 0);
     const sequence = Math.floor(id / 4);
-    const mirrored = id >= 8 && (hash32(state.seed ^ Math.imul(sequence + 1, 0x85ebca6b)) & 1) === 1;
+    const mirrored = false; // Postpone mirroring until simulated route coverage is stable.
     const template = heights[patternIndex][beat];
-    const variation = id === 0 || branch ? 0 : (random(state) - 0.5) * (id < 4 ? 10 : 12);
+    const variation = id === 0 || branch ? 0 : (random(state) - 0.5) * 10;
     let desired = branch ? 318 : START_Y + (template - START_Y) * (mirrored ? -1 : 1) + variation;
     // A bonus gate follows an approach around mid-tunnel, not a hard reversal
     // from an extreme rail. This keeps the optional upper route a real choice.
     if ((pattern === 'DIVE' || pattern === 'RECOVERY') && beat === 0) desired = Math.max(250, desired);
-    const maxShift = id < 4 ? 110 : 65 - 8 * difficulty.progress;
+    const maxShift = 110;
     const reachable = Math.max(state.lastGapY - maxShift, Math.min(state.lastGapY + maxShift, desired));
-    const center = id === 0 ? START_Y : Math.max(TOP_RAIL + size / 2 + 22, Math.min(BOTTOM_RAIL - size / 2 - 22, reachable));
+    const center = id === 0 ? START_Y : branch ? 318 : Math.max(TOP_RAIL + size / 2 + 22, Math.min(BOTTOM_RAIL - size / 2 - 22, reachable));
     const gap = { center, size };
     const obstacle: Obstacle = { id, x: state.nextObstacleX, width, height: 0, side: 0, kind, gap, branch, pattern, passed: false, broken: false, closest: Infinity };
     state.obstacles.push(obstacle);
@@ -133,7 +133,7 @@ function populate(state: GameState) {
       x: gateX - 42 + index * 42, y: branch.center, optional: true, value: 30, collected: false });
     if (id % 10 === 5) state.pickups.push({ id, ...point(0.6), kind: 'shield', collected: false });
     state.lastGateX = gateX; state.lastGapY = center;
-    state.nextObstacleX += difficulty.spacing + Math.floor(random(state) * 52) + (branch ? 240 : pattern === 'RECOVERY' ? 80 : 0);
+    state.nextObstacleX += difficulty.spacing + Math.floor(random(state) * 35) + (branch ? 240 : pattern === 'RECOVERY' ? 80 : 0) + (beat === 3 && id > 3 ? 100 : 0);
   }
 }
 export function createRun(seed = 1): GameState {
