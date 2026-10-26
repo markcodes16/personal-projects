@@ -69,3 +69,25 @@ test('same seed gives the same sequence and geometry across a long course', () =
   assert.notDeepEqual(first, longCourse(426));
   assert.equal(difficultyAt(100000).opening, 158, 'Keep the established difficulty ceiling');
 });
+
+test('after the intro, frequent gates physically force leaving the center corridor', () => {
+  const requiredDeviation = 30;
+  for (let seed = 1; seed <= 100; seed++) {
+    const course = longCourse(seed).filter(gate => gate.id < 52);
+    const challenges = course.filter(gate => {
+      const gap = gate.gap!;
+      // A robot must fit entirely inside the gap; an allowed middle corridor
+      // of +/-30 is insufficient at a committed altitude gate.
+      return Math.abs(gap.center - START_Y) > gap.size / 2 - ROBOT_RADIUS + requiredDeviation;
+    });
+    const high = challenges.filter(gate => gate.gap!.center < START_Y).length;
+    const low = challenges.filter(gate => gate.gap!.center > START_Y).length;
+    assert.ok(challenges.length >= 14, `Seed ${seed}: only ${challenges.length} meaningful altitude changes`);
+    assert.ok(high >= 5 && low >= 5, `Seed ${seed}: need challenges in both directions (${high} up, ${low} down)`);
+    // The first gate must remain forgiving; the next few demonstrate ascent
+    // without turning the control into an instant-velocity jump.
+    assert.equal(course[0].gap?.center, START_Y);
+    assert.ok(course.some(gate => gate.id >= 4 && gate.gap!.center > 350));
+    assert.ok(course.some(gate => gate.id >= 4 && gate.gap!.center < 210));
+  }
+});
