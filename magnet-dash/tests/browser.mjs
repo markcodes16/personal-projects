@@ -23,7 +23,7 @@ try {
   let ready = false;
   for (let attempt = 0; attempt < 100; attempt++) {
     if (server.exitCode !== null) throw new Error(`Preview exited: ${serverLogs}`);
-    if (serverLogs.includes('http://127.0.0.1:4175')) {
+    if (serverLogs.replace(/\x1b\[[0-9;]*m/g, '').includes('http://127.0.0.1:4175')) {
       try { if ((await fetch(origin)).ok) { ready = true; break; } } catch { /* Startup is bounded below. */ }
     }
     await sleep(100);
