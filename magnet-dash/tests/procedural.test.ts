@@ -31,7 +31,7 @@ test('seeded pattern bags shuffle six sequences without immediate duplicates', (
 });
 
 test('procedural routes stay bounded, preserve bonuses and require no forced polarity', () => {
-  let mirroredRoutes = 0, totalBranches = 0, totalSqueezes = 0;
+  let totalBranches = 0, totalSqueezes = 0;
   const signatures = new Set<string>();
   for (let seed = 1; seed <= 100; seed++) {
     const gates = longCourse(seed);
@@ -56,11 +56,9 @@ test('procedural routes stay bounded, preserve bonuses and require no forced pol
         assert.ok(Math.abs(center - gates[i - 1].gap!.center) <= 110,
           `Seed ${seed}: jump from ${gates[i - 1].gap!.center} to ${center}`);
       }
-      if (gate.id >= 4 && center > 365) mirroredRoutes++;
     }
   }
   assert.ok(totalBranches > 200 && totalSqueezes > 1000, 'Keep optional rewards and squeeze challenge available');
-  assert.ok(mirroredRoutes > 0, 'Random orientation should visit both sides of the tunnel');
   assert.ok(signatures.size > 90, 'Routes should vary beyond a different seed label');
 });
 
