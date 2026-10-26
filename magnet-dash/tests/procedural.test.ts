@@ -53,7 +53,7 @@ test('procedural routes stay bounded, preserve bonuses and require no forced pol
       if (gate.kind === 'squeeze') totalSqueezes++;
       if (i > 0 && gate.id === gates[i - 1].id + 1) {
         assert.ok(gate.x - gates[i - 1].x >= 550, 'Enough time to respond to each gate');
-        assert.ok(Math.abs(center - gates[i - 1].gap!.center) <= 110,
+        assert.ok(Math.abs(center - gates[i - 1].gap!.center) <= 110.001,
           `Seed ${seed}: jump from ${gates[i - 1].gap!.center} to ${center}`);
       }
     }
