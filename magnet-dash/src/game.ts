@@ -59,22 +59,66 @@ export function difficultyAt(distance: number) {
     speed: Math.min(MAX_SPEED, Math.sqrt(START_SPEED ** 2 + 2 * RUN_ACCELERATION * Math.max(0, distance))),
     spacing: 610 - 60 * progress, opening: 194 - 36 * progress };
 }
+// Shuffled "bags" use a separate deterministic stream: the Daily Circuit is
+// reproducible and drawing an extra particle/pickup never changes the course.
+function hash32(value: number) {
+  value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
+  value = Math.imul(value ^ (value >>> 15), 0x846ca68b);
+  return (value ^ (value >>> 16)) >>> 0;
+}
+function patternBag(seed: number, cycle: number) {
+  const bag: (typeof PATTERNS)[number][] = [...PATTERNS];
+  let value = hash32(seed ^ Math.imul(cycle + 1, 0x9e3779b1)) || 1;
+  for (let index = bag.length - 1; index > 0; index--) {
+    value ^= value << 13; value ^= value >>> 17; value ^= value << 5;
+    const choice = (value >>> 0) % (index + 1);
+    [bag[index], bag[choice]] = [bag[choice], bag[index]];
+  }
+  if (cycle === 0) {
+    // Keep the proven opening climb as a familiar first-play lesson.
+    const first = bag.indexOf('CLIMB');
+    [bag[0], bag[first]] = [bag[first], bag[0]];
+  }
+  return bag;
+}
+export function patternAt(seed: number, obstacleId: number): (typeof PATTERNS)[number] {
+  const sequence = Math.floor(obstacleId / 4);
+  const cycle = Math.floor(sequence / PATTERNS.length);
+  const bag = patternBag(seed, cycle);
+  if (cycle > 0) {
+    // Boundary swaps never affect the last slot, so no recursive history is needed.
+    const previousLast = patternBag(seed, cycle - 1)[PATTERNS.length - 1];
+    if (bag[0] === previousLast) [bag[0], bag[1]] = [bag[1], bag[0]];
+  }
+  return bag[sequence % PATTERNS.length];
+}
+
 function populate(state: GameState) {
   while (state.nextObstacleX < state.distance + 2800) {
     const id = state.nextId++;
     const difficulty = difficultyAt(state.nextObstacleX);
-    const pattern = PATTERNS[Math.floor(id / 4) % PATTERNS.length], beat = id % 4;
+    const pattern = patternAt(state.seed, id), beat = id % 4;
     const heights = [[283, 238, 180, 205], [250, 318, 300, 350], [283, 215, 283, 350],
       [305, 260, 210, 270], [283, 250, 310, 283], [290, 318, 283, 283]];
     const patternIndex = PATTERNS.indexOf(pattern);
     const squeeze = pattern === 'SQUEEZE';
     const kind = squeeze ? 'squeeze' : 'wall';
     const width = squeeze ? 30 : pattern === 'DRIFT' ? 28 : 46 + Math.floor(random(state) * 13);
+    // The optional high passage must remain separated from the main opening.
     const branch = (pattern === 'DIVE' || pattern === 'RECOVERY') && beat === 1 ? { center: 154, size: 108 - 8 * difficulty.progress } : undefined;
     const size = id === 0 ? 216 : pattern === 'CLIMB' && beat === 2 ? 150 - 12 * difficulty.progress : branch ? 180 : pattern === 'RECOVERY' ? 220 : pattern === 'DRIFT' ? 220 - 10 * difficulty.progress
       : difficulty.opening - (squeeze || (pattern === 'CLIMB' && beat === 2) ? 20 : 0);
-    const desired = heights[patternIndex][beat] + (id === 0 || branch ? 0 : (random(state) - 0.5) * 10);
-    const center = id === 0 ? START_Y : Math.max(TOP_RAIL + size / 2 + 22, Math.min(BOTTOM_RAIL - size / 2 - 22, desired));
+    const sequence = Math.floor(id / 4);
+    const mirrored = id >= 4 && (hash32(state.seed ^ Math.imul(sequence + 1, 0x85ebca6b)) & 1) === 1;
+    const template = heights[patternIndex][beat];
+    const variation = id === 0 || branch ? 0 : (random(state) - 0.5) * (id < 4 ? 10 : 24);
+    let desired = branch ? 318 : START_Y + (template - START_Y) * (mirrored ? -1 : 1) + variation;
+    // A bonus gate follows an approach around mid-tunnel, not a hard reversal
+    // from an extreme rail. This keeps the optional upper route a real choice.
+    if ((pattern === 'DIVE' || pattern === 'RECOVERY') && beat === 0) desired = Math.max(250, desired);
+    const maxShift = id < 4 ? 110 : 88 - 10 * difficulty.progress;
+    const reachable = Math.max(state.lastGapY - maxShift, Math.min(state.lastGapY + maxShift, desired));
+    const center = id === 0 ? START_Y : Math.max(TOP_RAIL + size / 2 + 22, Math.min(BOTTOM_RAIL - size / 2 - 22, reachable));
     const gap = { center, size };
     const obstacle: Obstacle = { id, x: state.nextObstacleX, width, height: 0, side: 0, kind, gap, branch, pattern, passed: false, broken: false, closest: Infinity };
     state.obstacles.push(obstacle);
@@ -89,7 +133,7 @@ function populate(state: GameState) {
       x: gateX - 42 + index * 42, y: branch.center, optional: true, value: 30, collected: false });
     if (id % 10 === 5) state.pickups.push({ id, ...point(0.6), kind: 'shield', collected: false });
     state.lastGateX = gateX; state.lastGapY = center;
-    state.nextObstacleX += difficulty.spacing + Math.floor(random(state) * 35) + (branch ? 240 : pattern === 'RECOVERY' ? 80 : 0);
+    state.nextObstacleX += difficulty.spacing + Math.floor(random(state) * 52) + (branch ? 240 : pattern === 'RECOVERY' ? 80 : 0);
   }
 }
 export function createRun(seed = 1): GameState {
