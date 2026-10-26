@@ -109,14 +109,14 @@ function populate(state: GameState) {
     const size = id === 0 ? 216 : pattern === 'CLIMB' && beat === 2 ? 150 - 12 * difficulty.progress : branch ? 180 : pattern === 'RECOVERY' ? 220 : pattern === 'DRIFT' ? 220 - 10 * difficulty.progress
       : difficulty.opening - (squeeze || (pattern === 'CLIMB' && beat === 2) ? 20 : 0);
     const sequence = Math.floor(id / 4);
-    const mirrored = id >= 4 && (hash32(state.seed ^ Math.imul(sequence + 1, 0x85ebca6b)) & 1) === 1;
+    const mirrored = id >= 8 && (hash32(state.seed ^ Math.imul(sequence + 1, 0x85ebca6b)) & 1) === 1;
     const template = heights[patternIndex][beat];
-    const variation = id === 0 || branch ? 0 : (random(state) - 0.5) * (id < 4 ? 10 : 24);
+    const variation = id === 0 || branch ? 0 : (random(state) - 0.5) * (id < 4 ? 10 : 12);
     let desired = branch ? 318 : START_Y + (template - START_Y) * (mirrored ? -1 : 1) + variation;
     // A bonus gate follows an approach around mid-tunnel, not a hard reversal
     // from an extreme rail. This keeps the optional upper route a real choice.
     if ((pattern === 'DIVE' || pattern === 'RECOVERY') && beat === 0) desired = Math.max(250, desired);
-    const maxShift = id < 4 ? 110 : 88 - 10 * difficulty.progress;
+    const maxShift = id < 4 ? 110 : 65 - 8 * difficulty.progress;
     const reachable = Math.max(state.lastGapY - maxShift, Math.min(state.lastGapY + maxShift, desired));
     const center = id === 0 ? START_Y : Math.max(TOP_RAIL + size / 2 + 22, Math.min(BOTTOM_RAIL - size / 2 - 22, reachable));
     const gap = { center, size };
