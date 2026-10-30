@@ -2,6 +2,12 @@
 
 Projects in Python, TypeScript, and GDScript, focused on game tooling, progress tracking, and gameplay systems.
 
+## Portfolio quick start
+
+For software-engineering reviews, start with **[Magnet Dash](magnet-dash/)** (playable browser game, TypeScript engine, persistence, automated tests), then **[Deadlock Companion](deadlock-companion/)** (Python desktop architecture, SQLite and data adapters). **[Deadlock Training Journal](deadlock-training-journal/)** demonstrates a full-stack React app with a hosted-auth/D1 dependency. The **[Godot starter](godot-roguelite-starter/)** is intentionally a gameplay prototype rather than a shipped game.
+
+Each project has its own README. Development/hosting caveats are documented per project; no trained machine-learning model is claimed in this repository.
+
 ## Projects
 
 | Project | Overview | Technologies |

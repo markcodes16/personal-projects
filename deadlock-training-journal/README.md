@@ -27,3 +27,9 @@ The package specifies Node.js 22.13 or newer and pnpm 11.19.0. The repository in
 The hosted application depends on its platform authentication and D1 services. The included `.openai/hosting.json` is a template with the `DB` binding; the original deployment identifier is omitted. Configure a new deployment and its services before publishing your own instance.
 
 Database migrations are generated from `db/schema.ts`. See `package.json`, `vite.config.ts`, and the `scripts/` directory for the supported workflow.
+
+## Verification and authentication boundaries
+
+Run `pnpm test` for the small, dependency-free request-validation test suite, then `pnpm lint` and `pnpm build`. The API rejects malformed JSON, non-object envelopes and oversized payloads before schema validation; these tests do **not** certify a hosted deployment.
+
+**Security boundary:** `getChatGPTUser()` trusts identity headers injected by the managed hosting platform. A public reverse proxy must remove any client-supplied `oai-authenticated-*` headers and inject verified identities only. Do not expose this application through a generic proxy that forwards arbitrary identity headers. For independent hosting, replace this adapter with verified sessions/OIDC and test cross-account authorization before accepting real user data. The development mock-auth plugin must never be used as production identity.

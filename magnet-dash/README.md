@@ -4,6 +4,13 @@ An original prototype for a one-tap arcade runner. A small magnetic robot floats
 
 Working title and concept: commercial naming and competitor research are still needed. No proprietary code, artwork or ad algorithms from other games are used.
 
+## Play it or inspect the engineering
+
+- **[Open the playable V5.1 browser preview](https://raw.githack.com/markcodes16/personal-projects/a2ab8c208cb8298194e9856f3d6b187e5d95e55e/magnet-dash/demo/index.html)** — no installation or account required (commit-pinned prototype).
+- Core game engine: [src/game.ts](src/game.ts). Rendering: [src/render.ts](src/render.ts). Persistence: [src/storage.ts](src/storage.ts).
+- Automated verification: `npm ci && npm test && npm run build && npm run test:browser`.
+- This is not a public mobile-app release; advertising, live retention measurements, and app-store packaging are not implemented.
+
 Continuing in a new conversation? Read the [project handoff](docs/PROJECT_HANDOFF.md) for the user's goals, current build, verified checks and next priorities.
 
 ## Try it without installing tools

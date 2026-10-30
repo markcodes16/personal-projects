@@ -1,0 +1,38 @@
+name: Verify Deadlock Training Journal
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deadlock-training-journal/**'
+      - '.github/workflows/training-journal-ci.yml'
+  pull_request:
+    paths:
+      - 'deadlock-training-journal/**'
+      - '.github/workflows/training-journal-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: deadlock-training-journal
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: deadlock-training-journal/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm lint
+      - run: pnpm build

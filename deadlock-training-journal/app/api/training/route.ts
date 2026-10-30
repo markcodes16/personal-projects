@@ -1,3 +1,4 @@
+import { readTrainingJson, RequestBodyError, trainingEnvelope } from "./request";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { storeDb } from "@/db/store";
 import { z } from "zod";
@@ -14,9 +15,16 @@ export async function GET(){
 export async function POST(req:Request){
  const user=await getChatGPTUser();if(!user)return json({error:"Sign in to save your progress."},401);
  const origin=req.headers.get("origin");if(origin&&origin!==new URL(req.url).origin)return json({error:"Invalid request origin."},403);
- let raw:any;try{if(Number(req.headers.get("content-length"))>20000)return json({error:"Entry is too large."},413);raw=await req.json()}catch{return json({error:"Invalid entry."},400)}
- const parsed=raw.kind==="session"?session.safeParse(raw.data):raw.kind==="lesson"?lesson.safeParse(raw.data):null;
- if(!parsed?.success)return json({error:parsed?.error.issues[0]?.message??"Invalid entry."},400);
- try{const d=parsed.data;await storeDb().prepare("INSERT INTO training_records (user_id, kind, id, data, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, kind, id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at").bind(user.userId,raw.kind,String(d.id),JSON.stringify(d),new Date().toISOString()).run();return json({ok:true,data:d});}
+ let raw: unknown;
+ try { raw = await readTrainingJson(req); }
+ catch (error) {
+   if (error instanceof RequestBodyError) return json({error:error.message}, error.status);
+   throw error;
+ }
+ const envelope = trainingEnvelope(raw);
+ if (!envelope) return json({error:"Invalid training entry."},400);
+ const parsed = envelope.kind==="session"?session.safeParse(envelope.data):lesson.safeParse(envelope.data);
+ if (!parsed.success) return json({error:parsed.error.issues[0]?.message??"Invalid entry."},400);
+ try{const d=parsed.data;await storeDb().prepare("INSERT INTO training_records (user_id, kind, id, data, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, kind, id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at").bind(user.userId,envelope.kind,String(d.id),JSON.stringify(d),new Date().toISOString()).run();return json({ok:true,data:d});}
  catch(e){console.error("Training save failed",e);return json({error:"Could not save. Your changes are still here; please retry."},503)}
 }
